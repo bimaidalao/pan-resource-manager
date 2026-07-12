@@ -17,8 +17,26 @@
         :root { --admin-theme: {$siteTheme|default='#1e80ff'}; }
         .login-form .el-form-item { margin-bottom: 18px; }
         .login-form .el-form-item__content { width: 100% !important; }
-        .login-code { display:flex; align-items:center; justify-content:flex-end; height:42px; }
-        .login-code-img { height:40px; border-radius:8px; cursor:pointer; border:1px solid #e2e8f0; }
+        .login-code {
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            height:42px;
+            min-width:100px;
+            cursor:pointer;
+            border-radius:8px;
+            border:1px solid #e2e8f0;
+            background:#f8fafc;
+            overflow:hidden;
+            user-select:none;
+        }
+        .login-code-img { height:40px; width:100%; object-fit:cover; display:block; }
+        .login-code-placeholder {
+            font-size:12px;
+            color:#64748b;
+            padding:0 8px;
+            white-space:nowrap;
+        }
     </style>
 </head>
 <body class="admin-login-page">
@@ -51,17 +69,18 @@
                             <i slot="prefix" class="el-icon-key"></i>
                         </el-input>
                     </el-form-item>
-                    <el-form-item v-if="codeUrl" prop="admin_code">
+                    <el-form-item prop="admin_code">
                         <el-row :gutter="10">
                             <el-col :span="14">
                                 <el-input @keyup.enter.native="handleLogin()" v-model="loginForm.admin_code"
-                                    auto-complete="off" placeholder="请输入验证码">
-                                    <i slot="prefix" class="el-icon-mobile"></i>
+                                    auto-complete="off" placeholder="请输入验证码" maxlength="4">
+                                    <i slot="prefix" class="el-icon-picture-outline"></i>
                                 </el-input>
                             </el-col>
                             <el-col :span="10">
-                                <div class="login-code">
-                                    <img :src="codeUrl" class="login-code-img" @click="getCaptcha" alt="验证码" />
+                                <div class="login-code" @click="getCaptcha" title="点击刷新验证码">
+                                    <img v-if="codeUrl" :src="codeUrl" class="login-code-img" alt="验证码" />
+                                    <span v-else class="login-code-placeholder">{{ captchaLoading ? '加载中…' : '点击获取' }}</span>
                                 </div>
                             </el-col>
                         </el-row>
@@ -88,6 +107,7 @@
             return {
                 codeUrl: '',
                 codeToken: '',
+                captchaLoading: false,
                 loading: false,
                 loginForm: {
                     admin_account: '',
@@ -117,6 +137,11 @@
                 var that = this;
                 this.$refs.loginForm.validate(valid => {
                     if (valid) {
+                        if (!that.codeToken) {
+                            that.$message.error('验证码未加载，请点击右侧刷新');
+                            that.getCaptcha();
+                            return;
+                        }
                         this.loading = true
                         this.loginForm.token = this.codeToken
                         axios.post('/admin/admin/login', Object.assign({}, PostBase, this.loginForm))
@@ -130,25 +155,44 @@
                                         location.replace('/qfadmin');
                                     }, 1000)
                                 } else {
-                                    that.$message.error(response.data.message);
+                                    that.$message.error(response.data.message || '登录失败');
                                     that.loading = false
+                                    that.loginForm.admin_code = ''
                                     that.getCaptcha();
                                 }
                             }).catch(function () {
+                                that.$message.error('登录失败，服务器内部错误');
                                 that.loading = false
                                 that.getCaptcha();
                             })
                     }
                 });
             },
+            // 必须走 /admin/system/getCaptcha，返回字段为 img + token（不是 base64）
             getCaptcha() {
                 var that = this;
-                axios.post('/admin/admin/getCaptcha', Object.assign({}, PostBase, {}))
-                    .then(function (response) {
-                        if (response.data.code == CODE_SUCCESS) {
-                            that.codeUrl = response.data.data.base64;
-                            that.codeToken = response.data.data.token;
+                that.captchaLoading = true;
+                axios.post('/admin/system/getCaptcha', Object.assign({}, PostBase))
+                    .then(function (res) {
+                        that.captchaLoading = false;
+                        if (res.data && res.data.code == CODE_SUCCESS && res.data.data) {
+                            // 兼容 img / base64 两种字段名
+                            that.codeUrl = res.data.data.img || res.data.data.base64 || '';
+                            that.codeToken = res.data.data.token || '';
+                            if (!that.codeUrl) {
+                                that.$message.error('验证码图片为空，请重试');
+                            }
+                        } else {
+                            that.codeUrl = '';
+                            that.codeToken = '';
+                            that.$message.error((res.data && res.data.message) || '获取验证码失败');
                         }
+                    })
+                    .catch(function () {
+                        that.captchaLoading = false;
+                        that.codeUrl = '';
+                        that.codeToken = '';
+                        that.$message.error('获取验证码失败，请检查网络后点击重试');
                     });
             }
         }
