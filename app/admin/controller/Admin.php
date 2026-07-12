@@ -286,6 +286,25 @@ class Admin extends QfShop
         $dataList = $this->model->getListByPage($map, $order, $this->selectList);
         return jok('用户列表获取成功', $dataList);
     }
+
+    /**
+     * 图形验证码（兼容旧版登录页错误请求 /admin/admin/getCaptcha）
+     * 同时返回 img / base64，避免 UI 读错字段导致验证码区域被 v-if 隐藏。
+     */
+    public function getCaptcha()
+    {
+        $validateModel = new ValidateModel();
+        $imgData = $validateModel->getImg();
+        $code = strtoupper($validateModel->getCode());
+        $token = sha1($code . time()) . rand(100000, 999999);
+        cache($token, $code, 60);
+        return jok('验证码生成成功', [
+            'img' => $imgData,
+            'base64' => $imgData, // 兼容错误字段名 base64
+            'token' => $token,
+        ]);
+    }
+
     public function login()
     {
         if (!input("admin_account")) {
