@@ -109,7 +109,7 @@ class Transfer
     }
 
 
-    public function deletepdirFid($type = 0, $filelist)
+    public function deletepdirFid($type, $filelist)
     {
         if ($type == 1) {
             //阿里

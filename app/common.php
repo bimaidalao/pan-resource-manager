@@ -1050,7 +1050,7 @@ function parsePanLinks($input)
  * 夸克线路一
  * @return array
  */
-function source1($isStoken=false,$title,$type=0,$num=5,$index=0)
+function source1($isStoken, $title, $type = 0, $num = 5, $index = 0)
 {
     return sourceData1($isStoken,$title,$type,$num,$index);
 }
@@ -1059,7 +1059,7 @@ function source1($isStoken=false,$title,$type=0,$num=5,$index=0)
  * 夸克线路二
  * @return array
  */
-function source2($isStoken=false,$title,$type=0,$num=5)
+function source2($isStoken, $title, $type = 0, $num = 5)
 {
     return sourceData2($isStoken,$title,$type,$num);
 }
@@ -1068,7 +1068,7 @@ function source2($isStoken=false,$title,$type=0,$num=5)
  * 网络资源搜索源一
  * @return array
  */
-function sourceData1($isStoken=false,$title, $type = 0, $maxCount = 100, $apiType = 0)
+function sourceData1($isStoken, $title, $type = 0, $maxCount = 100, $apiType = 0)
 {
     $urlDefault = "https://m.kkkba.com"; //http://s.kkkob.com
     $url2 = [];
@@ -1161,7 +1161,7 @@ function sourceData1($isStoken=false,$title, $type = 0, $maxCount = 100, $apiTyp
  * 网络资源搜索源二
  * @return array
  */
-function sourceData2($isStoken=false,$title, $type = 0, $maxCount = 100)
+function sourceData2($isStoken, $title, $type = 0, $maxCount = 100)
 {
     // 根据类型选择搜索参数
     $panType = [
