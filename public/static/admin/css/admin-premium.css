@@ -1,0 +1,491 @@
+/**
+ * 海鸥资源站 · 后台成熟产品皮肤
+ * 主题色/品牌与前台 conf 同步：--admin-theme 由 header 注入 home_theme
+ * 叠在 YAdmin.css / element.css 之上，不改业务结构
+ */
+
+:root {
+  --admin-theme: #1e80ff;
+  --admin-theme-soft: color-mix(in srgb, var(--admin-theme) 14%, #fff);
+  --admin-theme-mid: color-mix(in srgb, var(--admin-theme) 22%, #fff);
+  --admin-ink: #0f172a;
+  --admin-muted: #64748b;
+  --admin-line: rgba(15, 23, 42, 0.08);
+  --admin-bg: #f1f5f9;
+  --admin-card: #ffffff;
+  --admin-sidebar: #0b1220;
+  --admin-sidebar-text: #94a3b8;
+  --admin-sidebar-active: #ffffff;
+  --admin-radius: 14px;
+  --admin-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  --admin-font: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+html, body {
+  font-family: var(--admin-font) !important;
+  background: var(--admin-bg) !important;
+  color: var(--admin-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== 顶栏 ===== */
+.el-header {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--admin-line) !important;
+  box-shadow: var(--admin-shadow) !important;
+  border-radius: var(--admin-radius) !important;
+  margin: 12px 16px 12px 196px !important;
+  height: 60px !important;
+  line-height: 60px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 4px !important;
+}
+
+.el-header .el-menu-vertical.el-menu--horizontal {
+  background: transparent !important;
+  border: none !important;
+}
+
+.el-menu-vertical.el-menu--horizontal > .el-menu-item {
+  height: 58px !important;
+  line-height: 58px !important;
+  font-weight: 600 !important;
+  color: var(--admin-muted) !important;
+  border-bottom: none !important;
+  border-radius: 10px;
+  margin: 0 2px;
+  transition: .18s ease;
+}
+
+.el-menu-vertical.el-menu--horizontal > .el-menu-item:hover,
+.el-menu-vertical.el-menu--horizontal > .el-menu-item.is-active {
+  color: var(--admin-theme) !important;
+  background: var(--admin-theme-soft) !important;
+}
+
+.el-menu-vertical.el-menu--horizontal > .el-menu-item i {
+  color: inherit !important;
+}
+
+.el-header .topArea .el-link,
+.el-header .topArea .menuicon {
+  color: var(--admin-muted) !important;
+  font-weight: 500;
+}
+
+.el-header .topArea .menuicon:hover {
+  color: var(--admin-theme) !important;
+}
+
+/* 顶栏品牌胶囊 */
+.admin-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px 0 6px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: var(--admin-theme-soft);
+  border: 1px solid color-mix(in srgb, var(--admin-theme) 18%, transparent);
+  text-decoration: none !important;
+  max-width: 220px;
+}
+
+.admin-brand-chip img {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #fff;
+}
+
+.admin-brand-chip span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--admin-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== 侧栏 ===== */
+.el-aside {
+  background: var(--admin-sidebar) !important;
+  border: 0 !important;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.28) !important;
+  border-radius: var(--admin-radius) !important;
+  margin-right: 14px !important;
+  margin-top: -72px !important;
+  overflow: hidden !important;
+  width: 168px !important;
+}
+
+.el-aside .titlehome,
+.el-aside a.titlehome {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 68px !important;
+  line-height: 1 !important;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), transparent);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  text-decoration: none !important;
+  padding: 0 10px;
+}
+
+.el-aside .titlehome img {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}
+
+.el-aside .titlehome .brand-text {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.el-menu-vertical-demo.el-menu {
+  background: transparent !important;
+  border-right: none !important;
+  padding: 10px 8px 24px !important;
+}
+
+.el-menu-vertical-demo .el-menu-item,
+.el-menu-vertical-demo .el-submenu__title {
+  height: 44px !important;
+  line-height: 44px !important;
+  color: var(--admin-sidebar-text) !important;
+  border-radius: 10px !important;
+  margin: 4px 0 !important;
+  font-weight: 500 !important;
+}
+
+.el-menu-vertical-demo .el-menu-item i,
+.el-menu-vertical-demo .el-submenu__title i {
+  color: inherit !important;
+}
+
+.el-menu-vertical-demo .el-menu-item:hover,
+.el-menu-vertical-demo .el-submenu__title:hover {
+  background: rgba(255,255,255,0.06) !important;
+  color: #e2e8f0 !important;
+}
+
+.el-menu-vertical-demo .el-menu-item.is-active,
+.el-menu-vertical-demo .el-submenu .el-menu .el-menu-item.is-active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--admin-theme) 88%, #000), var(--admin-theme)) !important;
+  color: var(--admin-sidebar-active) !important;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--admin-theme) 35%, transparent);
+}
+
+.el-menu-vertical-demo .el-menu-item.is-active:before,
+.el-menu-vertical-demo .el-submenu .el-menu .el-menu-item.is-active:before {
+  display: none !important;
+}
+
+.el-menu-vertical-demo .el-submenu .el-menu {
+  background: transparent !important;
+}
+
+.el-menu-vertical-demo .el-submenu .el-menu-item {
+  min-width: auto !important;
+  padding-left: 44px !important;
+}
+
+.el-submenu.is-opened > .el-submenu__title,
+.el-submenu.is-opened > .el-submenu__title i {
+  color: #e2e8f0 !important;
+}
+
+.el-aside .version {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.7);
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 0 8px;
+}
+
+/* ===== 主内容 ===== */
+.body {
+  left: 16px !important;
+  right: 16px !important;
+  bottom: 14px !important;
+  top: 84px !important;
+}
+
+.el-main {
+  background: var(--admin-card) !important;
+  border: 1px solid var(--admin-line) !important;
+  box-shadow: var(--admin-shadow) !important;
+  border-radius: var(--admin-radius) !important;
+  padding: 22px 26px !important;
+  color: var(--admin-ink) !important;
+}
+
+/* 表格 / 按钮 / 分页 主题化 */
+.el-button--primary {
+  background-color: var(--admin-theme) !important;
+  border-color: var(--admin-theme) !important;
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  filter: brightness(1.06);
+}
+
+.el-button--text {
+  color: var(--admin-theme) !important;
+}
+
+.el-pagination.is-background .el-pager li:not(.disabled).active {
+  background-color: var(--admin-theme) !important;
+}
+
+.el-table th {
+  background: #f8fafc !important;
+  color: var(--admin-muted) !important;
+  font-weight: 700 !important;
+}
+
+.el-table td,
+.el-table th.is-leaf {
+  border-bottom-color: var(--admin-line) !important;
+}
+
+.el-input__inner:focus,
+.el-textarea__inner:focus {
+  border-color: var(--admin-theme) !important;
+}
+
+.el-tabs__item.is-active,
+.el-tabs__item:hover {
+  color: var(--admin-theme) !important;
+}
+
+.el-tabs__active-bar {
+  background-color: var(--admin-theme) !important;
+}
+
+.el-checkbox__input.is-checked .el-checkbox__inner,
+.el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--admin-theme) !important;
+  border-color: var(--admin-theme) !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  border-color: var(--admin-theme) !important;
+  background-color: var(--admin-theme) !important;
+}
+
+/* 页面标题区 */
+.admin-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-page-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--admin-ink);
+  letter-spacing: 0.01em;
+}
+
+.admin-page-head p {
+  margin: 4px 0 0;
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+/* 首页仪表盘 */
+.admin-dash {
+  max-width: 920px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 48px 16px 32px;
+}
+
+.admin-dash .hero-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.admin-dash h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--admin-ink);
+}
+
+.admin-dash .sub {
+  color: var(--admin-muted);
+  font-size: 14px;
+  margin-bottom: 28px;
+}
+
+.admin-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  text-align: left;
+}
+
+.admin-dash-card {
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  border: 1px solid var(--admin-line);
+  border-radius: 14px;
+  padding: 16px 16px 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.admin-dash-card b {
+  display: block;
+  font-size: 14px;
+  color: var(--admin-ink);
+  margin-bottom: 6px;
+}
+
+.admin-dash-card span {
+  font-size: 12px;
+  color: var(--admin-muted);
+  line-height: 1.5;
+}
+
+.admin-dash-card .tag {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--admin-theme);
+  background: var(--admin-theme-soft);
+}
+
+/* ===== 登录页 ===== */
+body.admin-login-page {
+  min-width: 0 !important;
+  background: #070b14 !important;
+}
+
+.admin-login-wrap {
+  min-height: 100vh;
+  min-width: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(1000px 500px at 10% -10%, color-mix(in srgb, var(--admin-theme) 35%, transparent), transparent 60%),
+    radial-gradient(800px 400px at 100% 0%, rgba(99, 102, 241, 0.25), transparent 55%),
+    linear-gradient(160deg, #070b14 0%, #0f172a 50%, #111827 100%);
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  position: relative;
+  z-index: 1;
+}
+
+.admin-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.admin-login-brand img {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+  background: #fff;
+}
+
+.admin-login-brand h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--admin-ink);
+  line-height: 1.25;
+}
+
+.admin-login-brand p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+.admin-login-card .vadmin {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  color: var(--admin-ink) !important;
+  margin-bottom: 14px !important;
+  padding-bottom: 0 !important;
+}
+
+.admin-login-card .login-form .el-input input {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  height: 42px;
+  background: #f8fafc;
+}
+
+.admin-login-card .login-submit {
+  height: 42px;
+  border-radius: 10px !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-top: 4px !important;
+}
+
+.admin-login-foot {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--admin-muted);
+}
+
+@media (max-width: 1280px) {
+  html, body { min-width: 0 !important; }
+  .el-header { margin-left: 16px !important; }
+  .el-aside { display: none; }
+  .body { left: 16px !important; top: 84px !important; }
+}

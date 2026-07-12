@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{$siteName|default='资源管理后台'} · 登录</title>
+    {notempty name="siteLogo"}
+    <link rel="icon" href="{$siteLogo}" />
+    {/notempty}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/admin/css/element.css">
+    <link rel="stylesheet" href="/static/admin/css/YAdmin.css">
+    <link rel="stylesheet" href="/static/admin/css/admin-premium.css?v=20260712p">
+    <style>
+        :root { --admin-theme: {$siteTheme|default='#1e80ff'}; }
+        .login-form .el-form-item { margin-bottom: 18px; }
+        .login-form .el-form-item__content { width: 100% !important; }
+        .login-code { display:flex; align-items:center; justify-content:flex-end; height:42px; }
+        .login-code-img { height:40px; border-radius:8px; cursor:pointer; border:1px solid #e2e8f0; }
+    </style>
+</head>
+<body class="admin-login-page">
+    <div id="app" v-cloak>
+        <div class="admin-login-wrap">
+            <div class="admin-login-card">
+                <div class="admin-login-brand">
+                    {notempty name="siteLogo"}
+                    <img src="{$siteLogo}" alt="{$siteName}">
+                    {else /}
+                    <img src="/static/admin/images/logo.png" alt="{$siteName}">
+                    {/notempty}
+                    <div>
+                        <h1>{$siteName|default='资源管理后台'}</h1>
+                        <p>{notempty name="siteSubname"}{$siteSubname}{else /}管理控制台 · 与前台品牌同步{/notempty}</p>
+                    </div>
+                </div>
+                <p class="vadmin">管理员登录</p>
+                <el-form class="login-form" status-icon :rules="loginRules" ref="loginForm" :model="loginForm"
+                    label-width="0" size="default">
+                    <el-form-item prop="admin_account">
+                        <el-input @keyup.enter.native="handleLogin()" v-model="loginForm.admin_account"
+                            auto-complete="off" placeholder="请输入账号">
+                            <i slot="prefix" class="el-icon-user"></i>
+                        </el-input>
+                    </el-form-item>
+                    <el-form-item prop="admin_password">
+                        <el-input @keyup.enter.native="handleLogin()" v-model="loginForm.admin_password" show-password
+                            auto-complete="off" placeholder="请输入密码">
+                            <i slot="prefix" class="el-icon-key"></i>
+                        </el-input>
+                    </el-form-item>
+                    <el-form-item v-if="codeUrl" prop="admin_code">
+                        <el-row :gutter="10">
+                            <el-col :span="14">
+                                <el-input @keyup.enter.native="handleLogin()" v-model="loginForm.admin_code"
+                                    auto-complete="off" placeholder="请输入验证码">
+                                    <i slot="prefix" class="el-icon-mobile"></i>
+                                </el-input>
+                            </el-col>
+                            <el-col :span="10">
+                                <div class="login-code">
+                                    <img :src="codeUrl" class="login-code-img" @click="getCaptcha" alt="验证码" />
+                                </div>
+                            </el-col>
+                        </el-row>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" :loading="loading" @click.native.prevent="handleLogin"
+                            class="login-submit">登 录
+                        </el-button>
+                    </el-form-item>
+                </el-form>
+                <div class="admin-login-foot">主题色与 Logo 来自站点配置 · 前后端同步</div>
+            </div>
+        </div>
+    </div>
+</body>
+<script src="/static/admin/js/vue-2.6.10.min.js"></script>
+<script src="/static/admin/js/axios.min.js"></script>
+<script src="/static/admin/js/element.js"></script>
+<script src="/static/admin/js/YAdmin.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                codeUrl: '',
+                codeToken: '',
+                loading: false,
+                loginForm: {
+                    admin_account: '',
+                    admin_password: '',
+                    admin_code: '',
+                },
+                loginRules: {
+                    admin_account: [
+                        { required: true, message: '请输入账号', trigger: 'blur' }
+                    ],
+                    admin_password: [
+                        { required: true, message: '请输入密码', trigger: 'blur' },
+                        { min: 6, message: '密码长度最少为6位', trigger: 'blur' }
+                    ],
+                    admin_code: [
+                        { required: true, message: '请输入验证码', trigger: 'blur' },
+                        { min: 4, max: 4, message: '验证码长度为4位', trigger: 'blur' }
+                    ]
+                }
+            }
+        },
+        created() {
+            this.getCaptcha();
+        },
+        methods: {
+            handleLogin() {
+                var that = this;
+                this.$refs.loginForm.validate(valid => {
+                    if (valid) {
+                        this.loading = true
+                        this.loginForm.token = this.codeToken
+                        axios.post('/admin/admin/login', Object.assign({}, PostBase, this.loginForm))
+                            .then(function (response) {
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message({
+                                        message: '登录成功,正在跳转中',
+                                        type: 'success'
+                                    });
+                                    setTimeout(function () {
+                                        location.replace('/qfadmin');
+                                    }, 1000)
+                                } else {
+                                    that.$message.error(response.data.message);
+                                    that.loading = false
+                                    that.getCaptcha();
+                                }
+                            }).catch(function () {
+                                that.loading = false
+                                that.getCaptcha();
+                            })
+                    }
+                });
+            },
+            getCaptcha() {
+                var that = this;
+                axios.post('/admin/admin/getCaptcha', Object.assign({}, PostBase, {}))
+                    .then(function (response) {
+                        if (response.data.code == CODE_SUCCESS) {
+                            that.codeUrl = response.data.data.base64;
+                            that.codeToken = response.data.data.token;
+                        }
+                    });
+            }
+        }
+    });
+</script>
+</html>

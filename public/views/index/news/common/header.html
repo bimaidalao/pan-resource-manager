@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    {notempty name="config.app_icon"}
+    <link rel="icon" href="{$config.app_icon}" />
+    {/notempty}
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1.0">
+    <title>{$seo_title}</title>
+    <meta name="keywords" content="{$seo_keywords}" />
+    <meta name="description" content="{$seo_description}" />
+    <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="light dark">
+    <script>
+      (function () {
+        try {
+          var key = 'seagull-theme';
+          var saved = localStorage.getItem(key);
+          var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+    <!-- 主题/文案全部来自后台 conf，禁止写死品牌色与站点文案 -->
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/index.min.css?v=20260712z">
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/app.css?v=20260712z">
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/m.css?v=20260712z">
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/premium.css?v=20260712z">
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/product.css?v=20260712z">
+    <link rel="stylesheet" href="__STATIC__/news/common/static/css/loader-orig.css?v=20260712z">
+    
+    {$config.seo_statistics|raw}
+    
+    <style>
+        :root {
+            /* 默认与 install data.sql 一致：home_theme=#1e80ff，后台改 conf 即全局同步 */
+            --admin-theme: {$config.home_theme|default='#1e80ff'};
+            --theme-color: {$config.home_color|default='#3e3e3e'};
+            --theme-theme: {$config.home_theme|default='#1e80ff'};
+            --theme-background: {$config.home_background|default='#fafafa'};
+            --theme-other_background: {$config.other_background|default='#ffffff'};
+            --quan-loading-text: {:json_encode(isset($config['quan_loading_text']) && $config['quan_loading_text'] !== '' ? $config['quan_loading_text'] : ' 全网检索中，请稍等...', JSON_UNESCAPED_UNICODE)};
+        }
+        {$config.home_css}
+
+        /* logo 永远显示（opacity 不绑滚动） */
+        body.site-skin .headerBox .box .logoBox,
+        body.site-skin .headerBox .box .logoBox .logo,
+        body.site-skin .headerBox .box .logoBox .title {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        body.site-skin .premium-brand-logo .brand-logo-img {
+            display: block !important;
+            opacity: 1 !important;
+        }
+    </style>

@@ -1,0 +1,497 @@
+{include file="news/common/header"}
+<style>
+    .pan-tabs-container {
+        width: 100%;
+        margin-bottom: 12px;
+        box-sizing: border-box;
+    }
+    .pan-tabs-scroll {
+        display: flex;
+        align-items: center;
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 0 4px;
+        height: 48px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .pan-tabs-scroll::-webkit-scrollbar { display: none; }
+    .pan-tab-item {
+        flex: 0 0 auto;
+        padding: 0 16px;
+        font-size: 14px;
+        height: 48px;
+        line-height: 48px;
+        position: relative;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    .pan-tab-item.active {
+        font-weight: 700;
+        font-size: 15px;
+    }
+    .pan-tab-item.active::after {
+        content: '';
+        position: absolute;
+        bottom: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 22px;
+        height: 3px;
+        border-radius: 2px;
+    }
+</style>
+</head>
+
+<body class="site-skin">
+    <div class="headBg" {notempty name="config.home_bg"}data-bg="{$config.home_bg}"{/notempty}></div>
+    <div id="app" v-cloak>
+        {include file="news/common/head"}
+        <div class="searchBox searchList">
+            <div class="search">
+                <div class="select" v-if="currentSource === 1" style="display: none !important;">
+                    <span>{{ is_type==2 ? '百度' : is_type==3 ? 'UC' : is_type==4 ? '迅雷' : '夸克' }}</span>
+                    <i class="iconfont icon-xiala" style="font-size: 14px"></i>
+                </div>
+                <div class="select" @click="selectBtn" v-else>
+                    {if condition="$category_id == ''"}全部{/if}
+                    {foreach $category as $key=>$vo }
+                    {if condition='$category_id == $vo.id'}{$vo.name}{/if}
+                    {/foreach}
+                    <i class="iconfont icon-xiala" style="font-size: 14px"></i>
+                </div>
+                <input type="text" v-model="keyword" placeholder="{$config.search_placeholder|default='输入关键字进行搜索'}" @keyup.enter="searchBtn"
+                    confirm-type="search" @confirm="searchBtn">
+                <div class="btn" @click="searchBtn">
+                    <i class="iconfont icon-sousuo"></i>
+                </div>
+            </div>
+        </div>
+        <div class="listBox">
+            <div class="screen">
+                <div class="fixed">
+                    <h3>筛选</h3>
+                    <div class="box" v-if="currentSource === 1">
+                        {foreach $displayList as $item}
+                        <a href="javascript:;" :class="{active: is_type=={$item.type}}" onclick="setType({$item.type})">
+                            {$item.name}
+                        </a>
+                        {/foreach}
+                    </div>
+
+                    <div class="box" v-else>
+                        <a href="/s/{$keyword}.html" class="{eq name='category_id' value='' }active{/eq}">全部</a>
+                        {foreach $category as $key=>$vo }
+                        <a href="/s/{$keyword}-1-{$vo.id}.html"
+                            class="{if condition='$category_id == $vo.id'}active{/if}">{$vo.name}</a>
+                        {/foreach}
+                    </div>
+                </div>
+            </div>
+            <div class="left">
+                {if condition="$config.is_quan == 1"}
+                <div class="source-switch">
+                    <h3>搜索源</h3>
+                    <div class="switch-items">
+                        <a href="javascript:;" onclick="switchSource(0)" :class="{active: currentSource==0}">{$config.local_source_name|default='本地库'}</a>
+                        <a href="javascript:;" onclick="switchSource(1)" :class="{active: currentSource==1}">{$config.quan_source_name|default='全网搜'}</a>
+                    </div>
+                </div>
+                {/if}
+
+                <div class="result-bar" v-show="currentSource === 0">
+                    <h3 v-if="total_result>0">「<span>{$keyword}</span>」· {{total_result}} 条结果</h3>
+                    <h3 v-else>「<span>{$keyword}</span>」· {$list.total_result} 条结果</h3>
+                    <span class="hint">{$config.local_result_hint|default='自动识别类型 · 点击立即访问跳转网盘'}</span>
+                </div>
+
+                <div class="box" v-show="currentSource === 0">
+                    {if condition="$list.total_result>0"}
+                    <div class="list result-list">
+                        {foreach $list.items as $key=>$vo }
+                        <div class="item result-card">
+                            <!-- 本地库不做假详情：标题=立即访问网盘 -->
+                            <a href="javascript:;" onclick="linkBtn(this)" data-index="{$key}" class="title" title="立即访问网盘">
+                                {$vo.name|raw}
+                            </a>
+                            <div class="meta-row type">
+                                <span class="resource-kind kind-{$vo.resource_kind|default='other'}">{$vo.resource_kind_label|default='其他'}</span>
+                                <span class="pan-badge">
+                                    <img src="__STATIC__/news/common/static/images/{$vo.is_type}.png" alt="" />
+                                    {if condition="$vo.is_type==1"}阿里云盘
+                                    {elseif condition="$vo.is_type==2"/}百度网盘
+                                    {elseif condition="$vo.is_type==3"/}UC网盘
+                                    {elseif condition="$vo.is_type==4"/}迅雷网盘
+                                    {else /}夸克网盘
+                                    {/if}
+                                </span>
+                                <span class="time">{$vo.times}</span>
+                                {notempty name="vo.code"}
+                                <span>提取码 {$vo.code}</span>
+                                {/notempty}
+                            </div>
+                            <div class="btns">
+                                <div class="btn"
+                                    @click.stop="copyText($event,'{$vo.title|trim}','{$vo.url}','{$vo.code}')"><i
+                                        class="iconfont icon-fenxiang1"></i>复制分享</div>
+                                <a href="javascript:;" onclick="linkBtn(this)" data-index="{$key}" class="btn btn-primary">
+                                    <i class="iconfont icon-yun_o" aria-hidden="true"></i>
+                                    立即访问
+                                </a>
+                            </div>
+                        </div>
+                        {/foreach}
+                    </div>
+                    <div class="page">
+                        {notempty name="list.total_result"}
+                        <el-pagination background layout="prev, pager, next" :pager-count="3"
+                            :default-current-page="{$page_no}" :default-page-size="{$page_size}"
+                            :total="{$list.total_result}" @change="changeBtn"></el-pagination>
+                        {/notempty}
+                    </div>
+                    {else /}
+                    {if condition="$blocked == 1"}
+                    <div style="padding-top: 16px;">
+                        <el-alert title="搜索词中包含违规内容，请修改后重试" style="padding: 12px 0; font-weight: bold;" type="error"
+                            center :closable="false">
+                        </el-alert>
+                    </div>
+                    {/if}
+                    <div class="empty-local">
+                        <el-empty style="margin-top: 4%;" :image-size="140" image="{$config.search_bg??''}"
+                            description="{$config.search_tips|default='本地库未命中该关键词'}">
+                        </el-empty>
+                        <p class="empty-local-hint">本地库只收录已入库的网盘分享。可换「仙逆 / 光阴之外 / 挽救计划」等库内片名试试。</p>
+                        {if condition="$config.is_quan == 1"}
+                        <button type="button" class="empty-local-cta" onclick="switchSource(1)">
+                            切换「{$config.quan_source_name|default='全网搜'}」继续找
+                        </button>
+                        {/if}
+                    </div>
+                    {/if}
+                </div>
+
+                <div class="Ebox" v-show="currentSource === 1">
+                    <div class="pan-tabs-container">
+                        <div class="pan-tabs-scroll">
+                            {foreach $displayList as $item}
+                            <div class="pan-tab-item" 
+                                 :class="{active: is_type == {$item.type}}" 
+                                 onclick="setType({$item.type})">
+                                {$item.name}
+                            </div>
+                            {/foreach}
+                        </div>
+                    </div>
+                    <!--
+                      全网检索动画（自测截图）：
+                      小白心圆斑 ≈ 字高，只亮 1～2 个字 = 放大镜；
+                      光斑过大整行洗蓝就没有放大感。
+                      class 不用 .loader，避开旧 product 的 !important 锁死。
+                    -->
+                    <style>
+                      .Qloading{padding:32px 16px;text-align:center;min-height:72px}
+                      .net-scan-loader{
+                        margin:0 auto;width:fit-content;max-width:100%;
+                        font-weight:bold;
+                        font-family:monospace,"SF Mono",Menlo,Consolas,monospace;
+                        font-size:28px;line-height:1em;
+                        color:transparent!important;
+                        -webkit-text-fill-color:transparent!important;
+                        /* 圆斑直径≈字高：白心硬，字身主题色 */
+                        background-image:radial-gradient(circle closest-side,
+                          #ffffff 0%,
+                          #ffffff 58%,
+                          var(--theme-theme,#1e80ff) 78%,
+                          var(--theme-theme,#1e80ff) 100%);
+                        background-position:right;
+                        /* 高度 100% 才能 closest-side = 字高圆斑（放大镜） */
+                        background-size:calc(200% - 1em) 100%;
+                        background-repeat:no-repeat;
+                        -webkit-background-clip:text;
+                        background-clip:text;
+                        animation:net-scan-l24 1s infinite alternate linear;
+                        border:0!important;transform:none!important;box-shadow:none!important;
+                        padding:0;outline:0;
+                      }
+                      @keyframes net-scan-l24{
+                        0%{background-position:right}
+                        100%{background-position:left}
+                      }
+                      @media (max-width:768px){.net-scan-loader{font-size:20px}}
+                    </style>
+                    <div class="Qloading" v-if="QLoading" aria-live="polite" aria-busy="true">
+                        <div class="net-scan-loader">{$config.quan_loading_text|default=' 全网检索中，请稍等...'}</div>
+                    </div>
+                    <div class="result-bar">
+                        <h3>「<span>{$keyword}</span>」· {$config.quan_source_name|default='全网'} {{QList.length}} 条</h3>
+                        <span class="hint" v-if="QLoading">{$config.quan_loading_hint|default='正在聚合中…'}</span>
+                        <span class="hint" v-else>{$config.quan_result_hint|default='点击获取资源'}</span>
+                    </div>
+                    <div class="list">
+                        <div class="item" v-for="(item,index) in QList" :key="index">
+                            <a href="javascript:;" onclick="getUrlBtn(this)" :data-index="index" class="title">
+                                {{item.title}}
+                            </a>
+                            <div class="meta-row type">
+                                <span class="resource-kind" :class="'kind-' + resourceKind(item.title, item.url).key">{{ resourceKind(item.title, item.url).label }}</span>
+                                <span class="pan-badge" v-if="item.is_type==1">阿里云盘</span>
+                                <span class="pan-badge" v-else-if="item.is_type==2">百度网盘</span>
+                                <span class="pan-badge" v-else-if="item.is_type==3">UC网盘</span>
+                                <span class="pan-badge" v-else-if="item.is_type==4">迅雷网盘</span>
+                                <span class="pan-badge" v-else>夸克网盘</span>
+                            </div>
+                            <div class="btns2" onclick="getUrlBtn(this)" :data-index="index">
+                                获取资源
+                            </div>
+                        </div>
+                    </div>
+
+                    <block v-if="!QLoading && QList.length==0">
+                        {if condition="$blocked == 1"}
+                        <div style="padding-top: 16px;">
+                            <el-alert title="搜索词中包含违规内容，请修改后重试" style="padding: 12px 0; font-weight: bold;" type="error"
+                                center :closable="false">
+                            </el-alert>
+                        </div>
+                        {/if}
+                        <el-empty style="margin-top: 10%;" :image-size="200" image="{$config.search_bg??''}"
+                            description="{$config.search_tips|default='未找到，可换个关键词尝试哦~'}">
+                            {if condition="$config.is_quan == 1"}
+                            <div class="vtips" onclick="switchSource(0)">请尝试切换&nbsp;“<a
+                                    href="javascript:;">{$config.local_source_name|default='本地库'}</a>”&nbsp;获取资源</div>
+                            {/if}
+                        </el-empty>
+                    </block>
+                </div>
+            </div>
+            <div class="right">
+                {volist name="hotList" id="vo"}
+                <div class="nav">
+                    {notempty name="vo.image"}
+                    <img src="{$vo.image}" alt="{$vo.name}">
+                    {/notempty}
+                    {$vo.name}
+                </div>
+                <div class="box">
+                    <div class="list">
+                        {volist name="vo.list" id="vos" length="5"}
+                        <a href="/s/{$vos.title}.html" class="item">
+                            <p>
+                                <span>{$key+1}</span>
+                                {$vos.title}
+                            </p>
+                        </a>
+                        {/volist}
+                    </div>
+                </div>
+                {/volist}
+            </div>
+        </div>
+        {include file="news/common/foot"}
+    </div>
+    {include file="news/common/footer"}
+    <script type="text/javascript" charset="utf-8">
+        app.rankList = JSON.parse('<?php echo json_encode($rankList, JSON_UNESCAPED_UNICODE); ?>');
+        for (const item of app.rankList) {
+            axios.get('/api/tool/ranking', {
+                params: {
+                    channel: item.name
+                }
+            })
+        }
+
+        // 搜索结果后台预热：按类型自动拉海报+详情（小说/影视/其它分流），点进详情更顺
+        (function prefetchLocalDetails() {
+            try {
+                var raw = '<?php echo json_encode($list["items"] ?? [], JSON_UNESCAPED_UNICODE); ?>';
+                raw = raw.replace(/[\x00-\x1F\x7F]/g, '');
+                var items = JSON.parse(raw || '[]');
+                if (!items || !items.length || !window.axios) return;
+                var ids = [];
+                for (var i = 0; i < items.length && ids.length < 12; i++) {
+                    var id = parseInt(items[i].id || items[i].source_id || 0, 10);
+                    if (id > 0) ids.push(id);
+                }
+                if (!ids.length) return;
+                var warmed = {};
+                var post = function (chunk) {
+                    if (!chunk.length) return Promise.resolve();
+                    return axios.get('/api/tool/prefetchDetail', {
+                        params: { ids: chunk.join(',') },
+                        timeout: 90000
+                    }).catch(function () {});
+                };
+                var run = function () {
+                    var a = ids.slice(0, 4), b = ids.slice(4, 8), c = ids.slice(8, 12);
+                    post(a).then(function () {
+                        if (b.length) return new Promise(function (r) { setTimeout(function () { post(b).then(r); }, 500); });
+                    }).then(function () {
+                        if (c.length) setTimeout(function () { post(c); }, 500);
+                    });
+                    a.concat(b, c).forEach(function (id) { warmed[id] = 1; });
+                };
+                if (window.requestIdleCallback) {
+                    requestIdleCallback(function () { setTimeout(run, 300); }, { timeout: 2000 });
+                } else {
+                    setTimeout(run, 700);
+                }
+                // 鼠标/触碰某条结果时优先预热该条（未在首批时）
+                document.addEventListener('pointerover', function (ev) {
+                    var a = ev.target && ev.target.closest ? ev.target.closest('a[href*="/d/"]') : null;
+                    if (!a) return;
+                    var m = (a.getAttribute('href') || '').match(/\/d\/(\d+)/);
+                    if (!m || warmed[m[1]]) return;
+                    warmed[m[1]] = 1;
+                    post([m[1]]);
+                }, { passive: true });
+            } catch (e) {}
+        })();
+
+        function linkBtn(element) {
+            const index = element.getAttribute('data-index');
+            var jsonData = '<?php echo json_encode($list["items"], JSON_UNESCAPED_UNICODE); ?>';
+            jsonData = jsonData.replace(/[\x00-\x1F\x7F]/g, '');
+            var list = JSON.parse(jsonData);
+            const item = list[index];
+            if (app.pc_type == 1) {
+                safeJump(item.url);
+            } else {
+                item.showUrl = item.url
+                app.dialogUrl = true;
+                showUrlFun(item);
+            }
+        }
+
+        function safeJump(url, target = '_blank') {
+            const a = document.createElement('a');
+            a.href = url;
+            a.rel = 'noreferrer';
+            a.target = target;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function getUrlBtn(element) {
+            app.dialogUrl = true;
+            const index = element.getAttribute('data-index');
+            const item = app.QList[index];
+            if (item.url.startsWith('http')) {
+                item.showUrl = item.url
+                showUrlFun(item);
+            } else {
+                app.dialogLoading = true;
+                axios.post('/api/other/save_url', {
+                    url: encodeURIComponent(item.url),
+                    title: item.title
+                }).then(res => {
+                    if (res.data.code == 200) {
+                        item.url = res.data.data.url
+                        item.showUrl = res.data.data.url
+                    } else {
+                        item.showUrl = ''
+                        item.message = res.data.message
+                    }
+                    app.dialogLoading = false;
+                    showUrlFun(item)
+                })
+                    .catch(err => {
+                        app.dialogLoading = false
+                    })
+            }
+        }
+
+        function showUrlFun(item) {
+            app.dialogItem = item
+            if (item.showUrl) {
+                var canvas = qrcanvas.qrcanvas({
+                    data: item.showUrl,
+                    size: 120
+                });
+                setTimeout(() => {
+                    document.getElementById('qrcode').appendChild(canvas);
+                }, 200);
+            }
+        }
+
+        let currentEventSource = null;
+        function setQLoading(on) {
+            try {
+                app.QLoading = !!on;
+            } catch (e) {}
+        }
+        function setType(type) {
+            // Tab 切换网盘类型时强制重新全网搜
+            if (type == app.is_type && app.QList && app.QList.length > 0) return
+            app.is_type = type;
+            setQLoading(false)
+            app.QList = []
+            if (currentEventSource) {
+                try { currentEventSource.close(); } catch (e) {}
+                currentEventSource = null
+            }
+            switchSource(1)
+        }
+        function switchSource(source) {
+            app.currentSource = source;
+            if (app.currentSource != 1) {
+                return;
+            }
+            // 已有结果且仍在加载中则跳过；允许空列表时重新搜
+            if (app.QLoading) return;
+            if (app.QList && app.QList.length > 0) return;
+
+            setQLoading(true);
+            app.QList = [];
+
+            if (currentEventSource) {
+                try { currentEventSource.close(); } catch (e) {}
+                currentEventSource = null;
+            }
+
+            const params = new URLSearchParams({
+                title: app.keyword || '',
+                is_type: app.is_type
+            });
+            currentEventSource = new EventSource('/api/other/web_search?' + params.toString());
+
+            currentEventSource.onmessage = function (event) {
+                if (!event || !event.data) return;
+                if (event.data.indexOf('[DONE]') !== -1) {
+                    try { currentEventSource.close(); } catch (e) {}
+                    currentEventSource = null;
+                    setQLoading(false);
+                    return;
+                }
+                try {
+                    const data = JSON.parse(event.data);
+                    app.QList.push(data);
+                } catch (e) {
+                    console.error('解析数据失败:', e);
+                }
+            };
+
+            currentEventSource.onerror = function () {
+                try { currentEventSource.close(); } catch (e) {}
+                currentEventSource = null;
+                setQLoading(false);
+            };
+        }
+
+        app.is_type = '{$firstKey}'
+        if ('{$config.is_quan}' == 1 && !'{$blocked}') {
+            try {
+                let listItems = JSON.parse('<?php echo json_encode($list["items"], JSON_UNESCAPED_UNICODE); ?>');
+                if (!listItems || listItems.length == 0) {
+                    // 本地无结果时自动切全网，立刻显示「全网检索中」动画
+                    switchSource(1);
+                }
+            } catch (e) {
+                switchSource(1);
+            }
+        }
+    </script>
+</body>
+
+</html>

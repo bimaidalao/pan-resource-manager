@@ -1,0 +1,88 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/admin/css/element.css">
+<link rel="stylesheet" href="/static/admin/css/YAdmin.css">
+<link rel="stylesheet" href="/static/admin/css/admin-premium.css?v=20260712p">
+{notempty name="siteLogo"}
+<link rel="icon" href="{$siteLogo}" />
+{/notempty}
+<style>
+  :root {
+    --admin-theme: {$siteTheme|default='#1e80ff'};
+  }
+</style>
+</head>
+
+<body class="admin-app-body">
+    <div id="app" v-cloak>
+        <el-container>
+            <el-header>
+                <el-col style="width: auto; display:flex; align-items:center;">
+                    <a class="admin-brand-chip" href="/qfadmin" title="{$siteName}">
+                        {notempty name="siteLogo"}
+                        <img src="{$siteLogo}" alt="{$siteName}">
+                        {else /}
+                        <img src="/static/admin/images/logo.png" alt="{$siteName}">
+                        {/notempty}
+                        <span>{$siteName|default='资源管理后台'}</span>
+                    </a>
+                    <el-menu class="el-menu-vertical" text-color="#64748b" :default-active="'{if condition="$node.node_pid"}{$node.node_pid}{else}{$node.node_id}{/if}'" unique-opened
+                        style="border:none;" mode="horizontal" active-text-color="{$siteTheme|default='#1e80ff'}">
+                        {volist name="menuList" id="item"}
+                        {if condition="count($item.subList)>0"}
+                        {if condition="count($item.subList[0]['subList'])>0"}
+                        <el-menu-item index="{$item.node_id}"
+                            onclick="location.href='/{$item['subList'][0]['subList'][0]['node_module']}/{$item['subList'][0]['subList'][0]['node_controller']}/{$item['subList'][0]['subList'][0]['node_action']}';"
+                            {if
+                            condition="$menu==$item.node_id"
+                            }class="is-active" {/if}>
+                            <i class="{$item.node_icon}"></i> {$item.node_title}
+                        </el-menu-item>
+                        {else}
+                        <el-menu-item index="{$item.node_id}"
+                            onclick="location.href='/{$item['subList'][0]['node_module']}/{$item['subList'][0]['node_controller']}/{$item['subList'][0]['node_action']}';" {if
+                            condition="$menu==$item.node_id"
+                            }class="is-active" {/if}>
+                            <i class="{$item.node_icon}"></i> {$item.node_title}
+                        </el-menu-item>
+                        {/if}
+                        {else}
+                            {if condition="count($item.subList)>0 || $item.node_controller=='index'"}
+                            <el-menu-item index="{$item.node_id}"
+                                onclick="location.href='/{$item.node_module}/{$item.node_controller}/{$item.node_action}';" {if
+                                condition="$menu==$item.node_id"
+                                }class="is-active" {/if}>
+                                <i class="{$item.node_icon}"></i> {$item.node_title}
+                            </el-menu-item>
+                            {/if}
+                        {/if}
+                        {/volist}
+                    </el-menu>
+                </el-col>
+
+                <el-col style="width: 260px;float: right;">
+                    <span class="topArea">
+                        <el-link :underline="false" class="el-icon-full-screen menuicon" onclick="requestFullScreen()" title="全屏"></el-link>
+                        <el-link :underline="false" href="/" target="_blank" title="打开前台">前台</el-link>
+                        <el-dropdown>
+                            <el-link :underline="false">&nbsp;{$adminInfo['admin_name']}<i class="el-icon-arrow-down"></i></el-link>
+                            <el-dropdown-menu slot="dropdown">
+                                <el-dropdown-item onclick="location.href='/qfadmin/admin/updatemyinfo';">修改资料
+                                </el-dropdown-item>
+                                <el-dropdown-item onclick="location.href='/qfadmin/admin/motifypassword';">修改密码
+                                </el-dropdown-item>
+                                <el-dropdown-item onclick="location.href='/qfadmin/system/clean';">清除缓存
+                                </el-dropdown-item>
+                                <el-dropdown-item  onclick="logout()">退出登录</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </el-dropdown>
+                    </span>
+                </el-col>
+            </el-header>
+            <el-container class="body">
+                {include file="common/menu"/}
+                <el-main>

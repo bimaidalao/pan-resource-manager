@@ -1,0 +1,47 @@
+/**
+ * 全网检索动画 · 放大镜扫字（与 list.html 内联一致）
+ * 圆斑高度 100% + closest-side → 直径≈字高，只亮 1～2 字
+ */
+
+.Qloading {
+  padding: 32px 16px;
+  text-align: center;
+  min-height: 72px;
+}
+
+.net-scan-loader {
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  font-weight: bold;
+  font-family: monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 28px;
+  line-height: 1em;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background-image: radial-gradient(
+    circle closest-side,
+    #ffffff 0%,
+    #ffffff 58%,
+    var(--theme-theme, #1e80ff) 78%,
+    var(--theme-theme, #1e80ff) 100%
+  );
+  background-position: right;
+  background-size: calc(200% - 1em) 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: net-scan-l24 1s infinite alternate linear;
+  border: 0 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+@keyframes net-scan-l24 {
+  0% { background-position: right; }
+  100% { background-position: left; }
+}
+
+@media (max-width: 768px) {
+  .net-scan-loader { font-size: 20px; }
+}

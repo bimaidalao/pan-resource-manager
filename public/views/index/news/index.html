@@ -1,0 +1,470 @@
+{include file="news/common/header"}
+<meta name="referrer" content="never">
+</head>
+
+<body class="site-skin premium-home">
+    <!-- 微信内置浏览器拦截提示层 开始 -->
+    <style>
+        #wechat-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 999999;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .wechat-guide-arrow {
+            position: absolute;
+            top: 20px;
+            right: 28px;
+            font-size: 38px;
+            color: #fff;
+            line-height: 1;
+            font-weight: 300;
+            animation: arrow-bounce 1.2s ease-in-out infinite;
+        }
+        .wechat-guide-arrow::after {
+            content: "↗";
+            display: block;
+        }
+        .wechat-guide-card {
+            margin-top: 15vh;
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 36px 24px;
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+        }
+        .wechat-guide-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 24px;
+            background: rgba(59, 130, 246, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .wechat-guide-icon svg {
+            width: 32px;
+            height: 32px;
+            color: #3b82f6;
+        }
+        .wechat-guide-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 28px;
+            color: #f8fafc;
+        }
+        .wechat-guide-step {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            color: #cbd5e1;
+        }
+        .wechat-guide-step .dots {
+            font-size: 28px;
+            line-height: 0.5;
+            color: #fff;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+        .wechat-guide-highlight {
+            color: #10b981;
+            font-weight: bold;
+            padding: 4px 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        .wechat-guide-note {
+            margin-top: 32px;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.7;
+            padding-top: 24px;
+            border-top: 1px dashed rgba(255, 255, 255, 0.15);
+        }
+        @keyframes arrow-bounce {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(6px, -6px); }
+        }
+    </style>
+    <div id="wechat-overlay">
+        <div class="wechat-guide-arrow"></div>
+        <div class="wechat-guide-card">
+            <div class="wechat-guide-icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                </svg>
+            </div>
+            <div class="wechat-guide-title">请在系统浏览器打开</div>
+            <div class="wechat-guide-step">
+                第一步：点击右上角的 <span class="dots">···</span>
+            </div>
+            <div class="wechat-guide-step">
+                第二步：选择 <span class="wechat-guide-highlight">在浏览器打开</span>
+            </div>
+            <div class="wechat-guide-note">
+                微信环境不支持网盘资源的搜索与转存。<br>为保障您的使用体验，请脱离微信环境访问本站。
+            </div>
+        </div>
+    </div>
+    <!-- 微信内置浏览器拦截提示层 结束 -->
+
+    <!-- home_bg 后台「大图背景」；勿写 CSS url()，ThinkPHP 会误解析为助手函数 -->
+    <div class="headBg" {notempty name="config.home_bg"}data-bg="{$config.home_bg}"{/notempty}></div>
+
+    <div id="app" v-cloak>
+        {include file="news/common/head"}
+
+        <section class="wrap premium-hero">
+            <div>
+                <!-- 首页主视觉 logo（原版 homeBox.logoBox；后台 conf.logo / app_icon） -->
+                <div class="premium-brand-logo">
+                    {notempty name="config.logo"}
+                    <img class="brand-logo-img" src="{$config.logo}" alt="{$config.app_name}" width="72" height="72" decoding="async">
+                    {else /}
+                    {notempty name="config.app_icon"}
+                    <img class="brand-logo-img" src="{$config.app_icon}" alt="{$config.app_name}" width="72" height="72" decoding="async">
+                    {/notempty}
+                    {/notempty}
+                    {if condition="$config.app_name && $config.app_name_hide!=1"}
+                    <span class="brand-logo-name">{$config.app_name}</span>
+                    {/if}
+                </div>
+                <div class="eyebrow">
+                    {notempty name="config.app_subname"}
+                    {$config.app_subname}
+                    {else /}
+                    {$config.hero_eyebrow_fallback|default='网盘资源搜索'}
+                    {/notempty}
+                </div>
+                <h1>
+                    {if condition="$config.app_name && $config.app_name_hide!=1"}
+                    {$config.app_name}<br />
+                    {/if}
+                    <em>
+                        {notempty name="config.app_title"}
+                        {$config.app_title}
+                        {else /}
+                        {$config.hero_title_fallback|default='电影、小说与资料'}
+                        {/notempty}
+                    </em>
+                </h1>
+                <p class="lead">
+                    {notempty name="config.app_description"}
+                    {$config.app_description}
+                    {else /}
+                    {$config.hero_lead_fallback|default='搜索网盘资源，复制分享，跳转打开。'}
+                    {/notempty}
+                </p>
+
+                <div class="premium-search-shell">
+                    <div class="premium-search">
+                        <input type="text" v-model="keyword" placeholder="{$config.search_placeholder_home|default='搜电影、小说、教程、软件…'}" @keyup.enter="searchBtn"
+                            confirm-type="search" @confirm="searchBtn" aria-label="搜索资源" class="js-main-search">
+                        <div class="btn" @click="searchBtn" role="button" aria-label="搜索">
+                            <i class="iconfont icon-sousuo"></i>搜索
+                        </div>
+                    </div>
+                </div>
+                <p class="pro-kbd-hint">按 <kbd>/</kbd> 聚焦搜索 · <kbd>Enter</kbd> 立即查询 · 点类型直达专区</p>
+                <!-- 类型入口：有数据锚点到模块，无数据也跳搜索（保证首页永远不止搜索框） -->
+                <div class="kind-chips">
+                    {notempty name="kindModules"}
+                    {volist name="kindModules" id="km"}
+                    <a class="kind-chip kind-{$km.key}" href="{if condition='!empty($km.list)'}#kind-{$km.key}{else}/s/{$km.search}.html{/if}">
+                        <i>{$km.icon}</i>{$km.label}
+                    </a>
+                    {/volist}
+                    {else /}
+                    <a class="kind-chip kind-video" href="/s/电影.html"><i>▶</i>影视视频</a>
+                    <a class="kind-chip kind-novel" href="/s/小说.html"><i>文</i>小说阅读</a>
+                    <a class="kind-chip kind-document" href="/s/教程.html"><i>▤</i>学习文档</a>
+                    <a class="kind-chip kind-software" href="/s/软件.html"><i>⌘</i>软件工具</a>
+                    <a class="kind-chip kind-archive" href="/s/合集.html"><i>▣</i>压缩资源</a>
+                    <a class="kind-chip kind-image" href="/s/壁纸.html"><i>▣</i>图片素材</a>
+                    {/notempty}
+                </div>
+            </div>
+
+            <div class="premium-hero-art" aria-hidden="true">
+                <div class="orbit orbit-a"></div>
+                <div class="orbit orbit-b"></div>
+                <div class="premium-hero-poster {notempty name='config.home_bg'}has-bg{/notempty}"
+                    {notempty name="config.home_bg"}data-bg="{$config.home_bg}"{/notempty}>
+                    <div class="label">
+                        {if condition="$config.app_name && $config.app_name_hide!=1"}
+                        {$config.app_name}
+                        {else /}
+                        今夜<br />找点好的
+                        {/if}
+                    </div>
+                </div>
+                <div class="premium-float film"><strong>▶</strong><span>影视</span></div>
+                <div class="premium-float book"><strong>文</strong><span>小说</span></div>
+                <div class="premium-float doc"><strong>▤</strong><span>资料</span></div>
+            </div>
+        </section>
+
+        {if !empty($newList)}
+        <section class="wrap premium-section">
+            <div class="premium-section-head">
+                <div>
+                    <p>LATEST</p>
+                    <h2>
+                        {notempty name="config.home_new_img"}
+                        <img src="{$config.home_new_img}" alt="" style="width:22px;height:22px;vertical-align:-4px;margin-right:8px;border-radius:4px;">
+                        {/notempty}
+                        最新更新
+                    </h2>
+                </div>
+                <span class="meta">后台「最新列表 / 排行榜数量」控制</span>
+            </div>
+            {if $config.ranking_type == 1 }
+            <div class="premium-poster-rail">
+                {volist name="newList" id="vos"}
+                {if condition="strpos($_SERVER['HTTP_USER_AGENT'], 'Mobile') === false || $key < $config.ranking_m_num"}
+                <a href="/d/{$vos.id}.html" target="_blank" class="premium-poster-card">
+                    <div class="cover">
+                        <div class="rank">{$key+1}</div>
+                        {if isset($vos.src) && $vos.src != ''}
+                        <img src="{$vos.src}" alt="{$vos.title}" />
+                        {/if}
+                    </div>
+                    <div class="body"><h3>{$vos.title}</h3></div>
+                </a>
+                {/if}
+                {/volist}
+            </div>
+            {else /}
+            <div class="premium-rank-grid">
+                <div class="premium-rank-panel" style="grid-column: 1 / -1;">
+                    <header>
+                        {notempty name="config.home_new_img"}
+                        <img src="{$config.home_new_img}" alt="">
+                        {/notempty}
+                        <h3>最新更新</h3>
+                    </header>
+                    {volist name="newList" id="vos"}
+                    {if condition="strpos($_SERVER['HTTP_USER_AGENT'], 'Mobile') === false || $key < $config.ranking_m_num"}
+                    <a href="/d/{$vos.id}.html" target="_blank" class="item">
+                        <b>{$key+1}</b>
+                        <span>{$vos.title}</span>
+                    </a>
+                    {/if}
+                    {/volist}
+                </div>
+            </div>
+            {/if}
+        </section>
+        {/if}
+
+        <section class="wrap premium-section kind-modules" id="browse-types">
+            <div class="premium-section-head">
+                <div>
+                    <p>BROWSE BY TYPE</p>
+                    <h2>按类型发现</h2>
+                </div>
+                <span class="meta" id="kind-auto-tip">自动识别 · 入库后自动更新 · 每5分钟刷新</span>
+            </div>
+            <div class="kind-module-grid">
+                {notempty name="kindModules"}
+                {volist name="kindModules" id="km"}
+                <article class="kind-module kind-{$km.key}" id="kind-{$km.key}">
+                    <header>
+                        <div class="kind-module-icon">{$km.icon}</div>
+                        <div class="kind-module-titles">
+                            <h3>{$km.label}</h3>
+                            <p>{$km.subtitle}</p>
+                        </div>
+                        <a class="kind-more" href="/s/{$km.search}.html">更多 →</a>
+                    </header>
+                    {if condition="!empty($km['list'])"}
+                    <ol class="kind-module-list">
+                        {volist name="km.list" id="item"}
+                        <li>
+                            <b>{$key+1}</b>
+                            <a href="/d/{$item.id}.html" target="_blank">{$item.title}</a>
+                        </li>
+                        {/volist}
+                    </ol>
+                    {else /}
+                    <div class="kind-empty">
+                        <p>库中暂未匹配到此类标题关键词</p>
+                        <a class="kind-empty-btn" href="/s/{$km.search}.html">搜索「{$km.search}」→</a>
+                    </div>
+                    {/if}
+                </article>
+                {/volist}
+                {else /}
+                <!-- PHP 未返回 kindModules 时的兜底入口，避免首页只剩搜索 -->
+                <article class="kind-module kind-video"><header><div class="kind-module-icon">▶</div><div class="kind-module-titles"><h3>影视视频</h3><p>电影 / 剧集 / 动漫</p></div><a class="kind-more" href="/s/电影.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/电影.html">去搜索影视 →</a></div></article>
+                <article class="kind-module kind-novel"><header><div class="kind-module-icon">文</div><div class="kind-module-titles"><h3>小说阅读</h3><p>TXT / EPUB / 网文</p></div><a class="kind-more" href="/s/小说.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/小说.html">去搜索小说 →</a></div></article>
+                <article class="kind-module kind-document"><header><div class="kind-module-icon">▤</div><div class="kind-module-titles"><h3>学习文档</h3><p>PDF / 教程 / 资料</p></div><a class="kind-more" href="/s/教程.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/教程.html">去搜索文档 →</a></div></article>
+                <article class="kind-module kind-software"><header><div class="kind-module-icon">⌘</div><div class="kind-module-titles"><h3>软件工具</h3><p>应用 / 插件 / 源码</p></div><a class="kind-more" href="/s/软件.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/软件.html">去搜索软件 →</a></div></article>
+                <article class="kind-module kind-archive"><header><div class="kind-module-icon">▣</div><div class="kind-module-titles"><h3>压缩资源</h3><p>ZIP / RAR / 合集</p></div><a class="kind-more" href="/s/合集.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/合集.html">去搜索合集 →</a></div></article>
+                <article class="kind-module kind-image"><header><div class="kind-module-icon">▣</div><div class="kind-module-titles"><h3>图片素材</h3><p>壁纸 / 素材</p></div><a class="kind-more" href="/s/壁纸.html">更多 →</a></header><div class="kind-empty"><a class="kind-empty-btn" href="/s/壁纸.html">去搜索图片 →</a></div></article>
+                {/notempty}
+            </div>
+        </section>
+
+        {notempty name="hotList"}
+        <section class="wrap premium-section" id="hot-charts">
+            <div class="premium-section-head">
+                <div>
+                    <p>CHARTS</p>
+                    <h2>热门榜单</h2>
+                </div>
+                <span class="meta">后台分类维护</span>
+            </div>
+
+            {if $config.ranking_type == 1 }
+            {volist name="hotList" id="vo"}
+            <div style="margin-bottom: 28px;">
+                <div class="premium-section-head" style="margin-bottom: 12px;">
+                    <div>
+                        <h2 style="font-size: 20px;">
+                            {notempty name="vo.image"}
+                            <img src="{$vo.image}" alt="{$vo.name}" style="width:22px;height:22px;vertical-align:-4px;margin-right:8px;border-radius:4px;">
+                            {/notempty}
+                            {$vo.name}
+                        </h2>
+                    </div>
+                </div>
+                <div class="premium-poster-rail">
+                    {volist name="vo.list" id="vos"}
+                    {if condition="strpos($_SERVER['HTTP_USER_AGENT'], 'Mobile') === false || $key < $config.ranking_m_num"}
+                    <a href="{if isset($vos.id) && $vos.id != ''}/d/{$vos.id}.html{else}/s/{$vos.title}.html{/if}"
+                        target="_blank" class="premium-poster-card">
+                        <div class="cover">
+                            <div class="rank">{$key+1}</div>
+                            {if isset($vos.src) && $vos.src != ''}
+                            <img src="{$vos.src}" alt="{$vos.title}" />
+                            {/if}
+                        </div>
+                        <div class="body"><h3>{$vos.title}</h3></div>
+                    </a>
+                    {/if}
+                    {/volist}
+                </div>
+            </div>
+            {/volist}
+            {else /}
+            <div class="premium-rank-grid">
+                {volist name="hotList" id="vo"}
+                <div class="premium-rank-panel">
+                    <header>
+                        {notempty name="vo.image"}
+                        <img src="{$vo.image}" alt="{$vo.name}">
+                        {/notempty}
+                        <h3>{$vo.name}</h3>
+                    </header>
+                    {volist name="vo.list" id="vos"}
+                    {if condition="strpos($_SERVER['HTTP_USER_AGENT'], 'Mobile') === false || $key < $config.ranking_m_num"}
+                    <a href="{if isset($vos.id) && $vos.id != ''}/d/{$vos.id}.html{else}/s/{$vos.title}.html{/if}"
+                        target="_blank" class="item">
+                        <b>{$key+1}</b>
+                        <span>{$vos.title}</span>
+                    </a>
+                    {/if}
+                    {/volist}
+                </div>
+                {/volist}
+            </div>
+            {/if}
+        </section>
+        {/notempty}
+
+        {include file="news/common/foot"}
+    </div>
+
+    {include file="news/common/footer"}
+    <script type="text/javascript" charset="utf-8">
+        try {
+            app.rankList = JSON.parse('<?php echo json_encode($rankList, JSON_UNESCAPED_UNICODE); ?>');
+        } catch (e) {
+            app.rankList = [];
+            console.warn("rankList 解析失败，已使用空数组。");
+        }
+        for (const item of app.rankList) {
+            if (item.is_sys != 1) {
+                continue;
+            }
+            axios.get('/api/tool/ranking', {
+                params: {
+                    channel: item.name
+                }
+            })
+        }
+
+        // 首页类型模块可见条目预热（海报+详情，按 kind 分流）
+        (function prefetchHomeKindDetails() {
+            try {
+                if (!window.axios) return;
+                var ids = [];
+                document.querySelectorAll('.kind-module-list a[href*="/d/"]').forEach(function (a) {
+                    var m = (a.getAttribute('href') || '').match(/\/d\/(\d+)/);
+                    if (m && ids.indexOf(m[1]) < 0) ids.push(m[1]);
+                });
+                ids = ids.slice(0, 12);
+                if (!ids.length) return;
+                var hit = function (chunk) {
+                    if (!chunk.length) return Promise.resolve();
+                    return axios.get('/api/tool/prefetchDetail', {
+                        params: { ids: chunk.join(',') },
+                        timeout: 90000
+                    }).catch(function () {});
+                };
+                var run = function () {
+                    var a = ids.slice(0, 4), b = ids.slice(4, 8), c = ids.slice(8, 12);
+                    hit(a).then(function () {
+                        if (b.length) return new Promise(function (r) { setTimeout(function () { hit(b).then(r); }, 600); });
+                    }).then(function () {
+                        if (c.length) setTimeout(function () { hit(c); }, 600);
+                    });
+                };
+                if (window.requestIdleCallback) {
+                    requestIdleCallback(function () { setTimeout(run, 500); }, { timeout: 2500 });
+                } else {
+                    setTimeout(run, 1000);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function() {
+            var ua = navigator.userAgent.toLowerCase();
+            var isWeixin = ua.indexOf('micromessenger') !== -1;
+            if (isWeixin) {
+                var overlay = document.getElementById('wechat-overlay');
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                }
+                var appContent = document.getElementById('app');
+                if (appContent) {
+                    appContent.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

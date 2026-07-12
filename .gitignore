@@ -1,0 +1,11 @@
+/.svn
+/.vscode
+.DS_Store
+runtime
+nginx.htaccess
+.env
+/public/error.log
+/public/install/install.lock
+/extend/netdisk/pan/access_token.json
+/extend/netdisk/pan/xunlei_captcha.json
+/extend/netdisk/pan/xunlei_token.json

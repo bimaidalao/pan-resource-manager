@@ -1,0 +1,389 @@
+{include file="news/common/header"}
+</head>
+
+<body class="site-skin">
+    <div class="headBg" {notempty name="config.home_bg"}data-bg="{$config.home_bg}"{/notempty}></div>
+    <div id="app" v-cloak>
+        {include file="news/common/head"}
+        <div class="searchBox searchDetail">
+            <div class="search">
+                <input type="text" v-model="keyword" placeholder="输入关键字进行搜索" @keyup.enter="searchBtn"
+                    confirm-type="search" @confirm="searchBtn">
+                <div class="btn" @click="searchBtn">
+                    <i class="iconfont icon-sousuo"></i>
+                </div>
+            </div>
+        </div>
+        <div class="listBox detailBox">
+            <div class="left">
+                <div class="box details detail-panel">
+                    <div class="detail-kicker">
+                        {if condition="!empty($detail.online_ok)"}在线讯息适配
+                        {elseif condition="!empty($detail.is_auto_detail)"}标题自动识别
+                        {else /}资源详情{/if}
+                        {if condition="isset($detail.link_status) && $detail.link_status=='alive'"}
+                        <span class="link-pill alive">链接有效</span>
+                        {elseif condition="isset($detail.link_status) && $detail.link_status=='dead'"}
+                        <span class="link-pill dead">链接已失效</span>
+                        {elseif condition="isset($detail.link_status) && $detail.link_status=='unknown'"}
+                        <span class="link-pill unknown">链接待确认</span>
+                        {/if}
+                    </div>
+
+                    <div class="detail-hero {empty name='detail.vod_pic'}no-cover{/empty}">
+                        {notempty name="detail.vod_pic"}
+                        <div class="detail-cover">
+                            <img src="{$detail.vod_pic}" alt="{$detail.title}" loading="lazy" referrerpolicy="no-referrer"
+                                 onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22450%22><rect fill=%22%231f2937%22 width=%22300%22 height=%22450%22/><text x=%2250%25%22 y=%2250%25%22 fill=%22%23d1d5db%22 font-size=%2218%22 text-anchor=%22middle%22>海报加载失败</text></svg>';" />
+                            {if condition="!empty($detail.poster_fallback)"}
+                            <span class="poster-badge">自动封面</span>
+                            {elseif condition="!empty($detail.poster_auto)"}
+                            <span class="poster-badge auto">在线匹配</span>
+                            {/if}
+                        </div>
+                        {/notempty}
+                        <div class="detail-hero-main">
+                            <div class="title">
+                                {notempty name="detail.clean_title"}{$detail.clean_title}{else /}{$detail.title}{/notempty}
+                            </div>
+                            {if condition="!empty($detail.online_title) && $detail.online_title != $detail.clean_title"}
+                            <p class="detail-online-match">百科匹配：{$detail.online_title}</p>
+                            {/if}
+                            {if condition="!empty($detail.clean_title) && $detail.clean_title != $detail.title"}
+                            <p class="detail-raw-title">{$detail.title}</p>
+                            {/if}
+
+                            <div class="detail-badges">
+                                <span class="resource-kind kind-{$detail.resource_kind|default='other'}">{$detail.resource_kind_label|default='其他'}</span>
+                                <span class="pan-badge">
+                                    {notempty name="detail.pan_name"}{$detail.pan_name}
+                                    {elseif condition="$detail.is_type==1"/}阿里云盘
+                                    {elseif condition="$detail.is_type==2"/}百度网盘
+                                    {elseif condition="$detail.is_type==3"/}UC网盘
+                                    {elseif condition="$detail.is_type==4"/}迅雷网盘
+                                    {else /}夸克网盘
+                                    {/notempty}
+                                </span>
+                                {notempty name="detail.auto_year"}
+                                <span class="meta-chip">{$detail.auto_year}</span>
+                                {/notempty}
+                                {notempty name="detail.auto_episode"}
+                                <span class="meta-chip">{$detail.auto_episode}</span>
+                                {/notempty}
+                                {notempty name="detail.auto_size"}
+                                <span class="meta-chip">{$detail.auto_size}</span>
+                                {/notempty}
+                                {notempty name="detail.times"}
+                                <span class="meta-chip">入库 {$detail.times}</span>
+                                {/notempty}
+                            </div>
+                        </div>
+                    </div>
+
+                    {notempty name="detail.auto_qualities"}
+                    <div class="detail-tag-row">
+                        {volist name="detail.auto_qualities" id="q"}
+                        <span class="detail-tag">{$q}</span>
+                        {/volist}
+                        {volist name="detail.auto_langs" id="lg"}
+                        <span class="detail-tag soft">{$lg}</span>
+                        {/volist}
+                    </div>
+                    {/notempty}
+
+                    <!-- 基本信息：严格按 resource_kind 分流，小说≠影视≠其它 -->
+                    {if condition="!empty($detail.info_ok)"}
+                    <?php
+                    // 只信资源类型识别结果，不与 info_kind 做 OR（防串台）
+                    $rk = (string)($detail['resource_kind'] ?? 'other');
+                    if ($rk === '') { $rk = 'other'; }
+                    $isNovelInfo = ($rk === 'novel');
+                    $isVideoInfo = ($rk === 'video');
+                    $isToolInfo = !$isNovelInfo && !$isVideoInfo;
+                    $infoAuthors = $isNovelInfo ? (array)($detail['info_authors'] ?? []) : [];
+                    $infoDirectors = $isVideoInfo ? (array)($detail['info_directors'] ?? []) : [];
+                    $infoActors = $isVideoInfo ? (array)($detail['info_actors'] ?? []) : [];
+                    $infoPlatforms = $isToolInfo ? (array)($detail['info_platforms'] ?? []) : [];
+                    $moduleTitle = [
+                        'video' => '影视信息', 'novel' => '书籍信息', 'document' => '文档信息',
+                        'software' => '软件信息', 'archive' => '压缩包信息', 'image' => '图片信息', 'other' => '资源信息',
+                    ][$rk] ?? '基本信息';
+                    ?>
+                    <div class="detail-info-card">
+                        <div class="detail-info-head">
+                            <span><?php echo htmlspecialchars($moduleTitle, ENT_QUOTES, 'UTF-8'); ?></span>
+                            <span class="detail-info-src">
+                                来源 {$detail.info_source|default='本地'}
+                                {notempty name="detail.info_source_url"}
+                                <a href="{$detail.info_source_url}" target="_blank" rel="noopener noreferrer">查看原页</a>
+                                {/notempty}
+                            </span>
+                        </div>
+                        <?php if ($isVideoInfo || $isNovelInfo): ?>
+                        {if condition="!empty($detail.info_rating)"}
+                        <div class="detail-rating-row">
+                            <span class="detail-score">{$detail.info_rating}</span>
+                            <span class="detail-score-max">/ 10</span>
+                            {if condition="!empty($detail.info_rating_count)"}
+                            <span class="detail-score-count">{$detail.info_rating_count} 人评价</span>
+                            {/if}
+                            {notempty name="detail.info_title"}
+                            <span class="detail-info-match">{$detail.info_title}{notempty name="detail.info_year"}（{$detail.info_year}）{/notempty}</span>
+                            {/notempty}
+                        </div>
+                        {/if}
+                        <?php endif; ?>
+                        <dl class="detail-info-grid">
+                            {notempty name="detail.info_year"}
+                            <div class="detail-info-item"><dt><?php echo $isNovelInfo ? '出版' : '年份'; ?></dt><dd>{$detail.info_year}</dd></div>
+                            {/notempty}
+                            <?php if ($isVideoInfo): ?>
+                            {notempty name="detail.info_countries"}
+                            <div class="detail-info-item"><dt>地区</dt><dd><?php echo htmlspecialchars(implode(' / ', (array)($detail['info_countries'] ?? [])), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            {/notempty}
+                            <?php endif; ?>
+                            {notempty name="detail.info_genres"}
+                            <div class="detail-info-item"><dt><?php echo $isToolInfo ? '标签' : '类型'; ?></dt><dd><?php echo htmlspecialchars(implode(' / ', (array)($detail['info_genres'] ?? [])), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            {/notempty}
+                            <?php if ($isVideoInfo): ?>
+                            {notempty name="detail.info_languages"}
+                            <div class="detail-info-item"><dt>语言</dt><dd><?php echo htmlspecialchars(implode(' / ', (array)($detail['info_languages'] ?? [])), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            {/notempty}
+                            <?php endif; ?>
+                            <?php if ($isNovelInfo && !empty($infoAuthors)): ?>
+                            <div class="detail-info-item"><dt>作者</dt><dd><?php echo htmlspecialchars(implode(' / ', $infoAuthors), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            <?php elseif ($isVideoInfo && !empty($infoDirectors)): ?>
+                            <div class="detail-info-item"><dt>导演</dt><dd><?php echo htmlspecialchars(implode(' / ', $infoDirectors), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            <?php endif; ?>
+                            <?php if ($isVideoInfo && !empty($infoActors)): ?>
+                            <div class="detail-info-item wide"><dt>主演</dt><dd><?php echo htmlspecialchars(implode(' / ', $infoActors), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            <?php endif; ?>
+                            <?php if ($isVideoInfo): ?>
+                            {notempty name="detail.info_episodes"}
+                            <div class="detail-info-item"><dt>集数</dt><dd>{$detail.info_episodes}</dd></div>
+                            {/notempty}
+                            {notempty name="detail.info_duration"}
+                            <div class="detail-info-item"><dt>片长</dt><dd>{$detail.info_duration}</dd></div>
+                            {/notempty}
+                            <?php endif; ?>
+                            <?php if ($isToolInfo): ?>
+                            {notempty name="detail.info_file_format"}
+                            <div class="detail-info-item"><dt>格式</dt><dd>{$detail.info_file_format}</dd></div>
+                            {/notempty}
+                            <?php if (!empty($infoPlatforms)): ?>
+                            <div class="detail-info-item"><dt>平台</dt><dd><?php echo htmlspecialchars(implode(' / ', $infoPlatforms), ENT_QUOTES, 'UTF-8'); ?></dd></div>
+                            <?php endif; ?>
+                            <?php endif; ?>
+                            {notempty name="detail.info_file_size"}
+                            <div class="detail-info-item"><dt>体积</dt><dd>{$detail.info_file_size}</dd></div>
+                            {else /}
+                            {notempty name="detail.auto_size"}
+                            <div class="detail-info-item"><dt>体积</dt><dd>{$detail.auto_size}</dd></div>
+                            {/notempty}
+                            {/notempty}
+                            {notempty name="detail.pan_name"}
+                            <div class="detail-info-item"><dt>网盘</dt><dd>{$detail.pan_name}</dd></div>
+                            {/notempty}
+                        </dl>
+                        {notempty name="detail.info_card"}
+                        <p class="detail-info-cardline">{$detail.info_card}</p>
+                        {/notempty}
+                    </div>
+                    {/if}
+
+                    {if condition="!empty($detail.info_intro)"}
+                    <div class="detail-summary online">
+                        <div class="detail-summary-label">剧情简介</div>
+                        <p>{$detail.info_intro}</p>
+                    </div>
+                    {elseif condition="!empty($detail.online_ok) && !empty($detail.online_summary)"}
+                    <div class="detail-summary online">
+                        <div class="detail-summary-label">
+                            {$detail.online_source|default='在线百科'} · 公开摘要
+                            {notempty name="detail.online_url"}
+                            <a href="{$detail.online_url}" target="_blank" rel="noopener noreferrer" class="detail-wiki-link">原文</a>
+                            {/notempty}
+                        </div>
+                        <p>{$detail.online_summary}</p>
+                    </div>
+                    {elseif condition="!empty($detail.vod_content)"}
+                    <div class="detail-summary">
+                        <div class="detail-summary-label">资源说明</div>
+                        <p>{$detail.vod_content}</p>
+                    </div>
+                    {/if}
+
+                    {if condition="!empty($detail.auto_qualities) || !empty($detail.auto_episode)"}
+                    <div class="detail-summary">
+                        <div class="detail-summary-label">网盘规格（标题解析）</div>
+                        <p>
+                            {notempty name="detail.auto_episode"}{$detail.auto_episode} · {/notempty}
+                            {notempty name="detail.auto_qualities"}<?php echo htmlspecialchars(implode(' / ', (array)($detail['auto_qualities'] ?? [])), ENT_QUOTES, 'UTF-8'); ?>{/notempty}
+                            {notempty name="detail.auto_size"} · {$detail.auto_size}{/notempty}
+                        </p>
+                    </div>
+                    {/if}
+
+                    <div class="cat" v-show="pc_type!=2">
+                        <div class="l">资源地址</div>
+                        <div class="r">
+                            <a href="javascript:;" onclick="linkBtn()" class="detail-url">{$detail.url}</a>
+                        </div>
+                    </div>
+                    {notempty name="detail.share_id"}
+                    <div class="cat">
+                        <div class="l">分享标识</div>
+                        <div class="r" style="opacity:.85;font-size:13px;">{$detail.share_id}</div>
+                    </div>
+                    {/notempty}
+                    {notempty name="detail.code"}
+                    <div class="cat">
+                        <div class="l">提取码</div>
+                        <div class="r detail-code">{$detail.code}</div>
+                    </div>
+                    {/notempty}
+
+                    <div class="action-tip">
+                        {if condition="isset($detail.link_status) && $detail.link_status=='dead'"}
+                        <strong style="color:#c2410c;">该分享经自动检测已失效/过期，已从列表中筛选隐藏。</strong>
+                        {notempty name="detail.link_status_text"}（{$detail.link_status_text}）{/notempty}
+                        {elseif condition="!empty($detail.is_auto_detail)"}
+                        海报与简介由在线公开源自动拉取；规格由标题解析。不读取网盘内文件清单。
+                        {else /}
+                        本站仅索引公开网盘分享，不存储文件。
+                        {/if}
+                    </div>
+                    <div class="btns detail-sticky-actions">
+                        <div class="btn"
+                            @click.stop="copyText($event,'{$detail.title|trim}','{$detail.url}','{$detail.code}')"><i
+                                class="iconfont icon-fenxiang1"></i>复制分享</div>
+                        {if condition="isset($detail.link_status) && $detail.link_status=='dead'"}
+                        <a class="btn btnCol" href="javascript:;" style="opacity:.55;pointer-events:none;"><i
+                                class="iconfont icon-yun_o"></i>链接已失效</a>
+                        {else /}
+                        <a class="btn btnCol btn-primary" href="javascript:;" onclick="linkBtn()"><i
+                                class="iconfont icon-yun_o"></i>立即访问网盘</a>
+                        {/if}
+                    </div>
+                </div>
+                {notempty name="sameList"}
+                <h3 class="samelistNav">相关资源</h3>
+                <div class="box details samelistBox">
+                    <div class="samelist">
+                        {volist name="sameList" id="vo"}
+                        <a href="/d/{$vo.source_id}.html" class="item">
+                            <p>
+                                <span>{$key+1}</span>
+                                {$vo.title}
+                            </p>
+                        </a>
+                        {/volist}
+                    </div>
+                </div>
+                {/notempty}
+            </div>
+            <div class="right">
+                {volist name="hotList" id="vo"}
+                <div class="nav">
+                    {notempty name="vo.image"}
+                    <img src="{$vo.image}" alt="{$vo.name}">
+                    {/notempty}
+                    {$vo.name}
+                </div>
+                <div class="box">
+                    <div class="list">
+                        {volist name="vo.list" id="vos" length="5"}
+                        <a href="/s/{$vos.title}.html" class="item">
+                            <p>
+                                <span>{$key+1}</span>
+                                {$vos.title}
+                            </p>
+                        </a>
+                        {/volist}
+                    </div>
+                </div>
+                {/volist}
+            </div>
+        </div>
+        {include file="news/common/foot"}
+    </div>
+    {include file="news/common/footer"}
+    <script type="text/javascript" charset="utf-8">
+        app.rankList = JSON.parse('<?php echo json_encode($rankList, JSON_UNESCAPED_UNICODE); ?>');
+        for (const item of app.rankList) {
+            axios.get('/api/tool/ranking', {
+                params: {
+                    channel: item.name
+                }
+            })
+        }
+
+        // 若服务端只出了 SVG 兜底封面，再异步请求一次海报接口（走修复后的 gzip 解压）
+        (function refreshPosterIfNeeded() {
+            var need = {if condition="!empty($detail.poster_fallback) || empty($detail.vod_pic)"}1{else /}0{/if};
+            if (!need || !window.axios) return;
+            var title = <?php echo json_encode($detail['poster_query'] ?? ($detail['clean_title'] ?? ($detail['title'] ?? '')), JSON_UNESCAPED_UNICODE); ?>;
+            var year = <?php echo json_encode($detail['auto_year'] ?? '', JSON_UNESCAPED_UNICODE); ?>;
+            var kind = <?php echo json_encode($detail['resource_kind'] ?? 'video', JSON_UNESCAPED_UNICODE); ?>;
+            var id = <?php echo (int)($detail['id'] ?? 0); ?>;
+            if (!title) return;
+            axios.get('/api/tool/fetchPoster', {
+                params: { title: title, year: year || '', kind: kind || 'video', id: id || 0 },
+                timeout: 15000
+            }).then(function (res) {
+                var url = res && res.data && res.data.data && res.data.data.url;
+                if (!url || String(url).indexOf('http') !== 0) return;
+                var img = document.querySelector('.detail-cover img');
+                var hero = document.querySelector('.detail-hero');
+                if (img) {
+                    img.src = url;
+                    var badge = document.querySelector('.poster-badge');
+                    if (badge) { badge.textContent = '在线匹配'; badge.classList.add('auto'); }
+                } else if (hero) {
+                    hero.classList.remove('no-cover');
+                    var box = document.createElement('div');
+                    box.className = 'detail-cover';
+                    box.innerHTML = '<img src="' + String(url).replace(/"/g, '&quot;') + '" alt="" loading="lazy" referrerpolicy="no-referrer" /><span class="poster-badge auto">在线匹配</span>';
+                    hero.insertBefore(box, hero.firstChild);
+                }
+            }).catch(function () {});
+        })();
+
+        function linkBtn() {
+            var item = {
+                title: '{$detail.title|raw}',
+                url: '{$detail.url|raw}',
+                code: '{$detail.code|default=""}',
+                showUrl: '{$detail.url|raw}'
+            };
+            if (app.pc_type == 1) {
+                safeJump(item.url);
+            } else {
+                app.dialogUrl = true;
+                app.dialogItem = item;
+                if (typeof showUrlFun === 'function') showUrlFun(item);
+            }
+        }
+        function safeJump(url, target) {
+            target = target || '_blank';
+            var a = document.createElement('a');
+            a.href = url;
+            a.rel = 'noreferrer';
+            a.target = target;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        function showUrlFun(item) {
+            app.dialogItem = item;
+            if (item.showUrl && window.qrcanvas) {
+                try {
+                    var canvas = qrcanvas.qrcanvas({ data: item.showUrl, size: 120 });
+                    var box = document.getElementById('qrcode');
+                    if (box) { box.innerHTML = ''; box.appendChild(canvas); }
+                } catch (e) {}
+            }
+        }
+    </script>
+</body>
+</html>

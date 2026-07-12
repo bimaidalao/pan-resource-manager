@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{$siteName|default='资源管理后台'} · 控制台</title>
+    {include file="common/header"/}
+    <div class="admin-dash">
+        {notempty name="siteLogo"}
+        <img class="hero-mark" src="{$siteLogo}" alt="{$siteName}">
+        {else /}
+        <img class="hero-mark" src="/static/admin/images/logo@2x.png" alt="{$siteName}">
+        {/notempty}
+        <h1>{$siteName|default='资源管理后台'}</h1>
+        <p class="sub">{notempty name="siteSubname"}{$siteSubname}{else /}统一后台 · 与前台品牌/主题同步{/notempty}</p>
+        <div class="admin-dash-grid">
+            <div class="admin-dash-card">
+                <span class="tag">内容</span>
+                <b>资源与分类</b>
+                <span>管理网盘资源入库、分类与批量转存，前台本地库即时生效。</span>
+            </div>
+            <div class="admin-dash-card">
+                <span class="tag">站点</span>
+                <b>品牌与主题</b>
+                <span>站名、Logo、主题色、搜索文案在「配置」中修改，前台后台同步。</span>
+            </div>
+            <div class="admin-dash-card">
+                <span class="tag">全网</span>
+                <b>接口与 Cookie</b>
+                <span>配置夸克/百度等 Cookie 与全网搜策略，保障检索与转存稳定。</span>
+            </div>
+        </div>
+        <p class="sub" style="margin-top:28px;">
+            <a href="/" target="_blank" style="color:var(--admin-theme);font-weight:700;text-decoration:none;">打开前台站点 →</a>
+        </p>
+    </div>
+    {include file="common/footer"/}
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data() {
+                return {
+                    data: {}
+                }
+            },
+            methods: {
+            }
+        });
+    </script>
+</html>

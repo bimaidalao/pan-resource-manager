@@ -1,0 +1,60 @@
+{if condition="$menuLists"}
+<el-aside width="168px">
+    <a class="titlehome" href="/qfadmin">
+        {notempty name="siteLogo"}
+        <img src="{$siteLogo}" alt="{$siteName}" />
+        {else /}
+        <img src="/static/admin/images/logo.png" alt="{$siteName}" />
+        {/notempty}
+        <span class="brand-text">{$siteName|default='资源管理'}</span>
+    </a>
+    <el-menu class="el-menu-vertical-demo" text-color="#94a3b8" default-active="'{$node.node_pid}-{$node.node_id}'"
+        :collapse="false" :default-openeds="['{$node.node_pid}']" background-color="transparent" active-text-color="#ffffff">
+        {volist name="menuLists" id="item"}
+        {if condition="count($item.subList)>0"}
+        <el-submenu index="{$item.node_id}">
+            <template slot="title">
+                <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+                {$item.node_title}
+            </template>
+            {volist name="$item.subList" id="subItem"}
+            <el-menu-item
+                onclick="location.href='/{$subItem.node_module}/{$subItem.node_controller}/{$subItem.node_action}';"
+                index="{$item.node_id}-{$subItem.node_id}" {if
+                condition="$subItem.node_controller==strtolower($controller) && $subItem.node_action==strtolower($action)"
+                }class="is-active" {/if}>{$subItem.node_title}</el-menu-item>
+            {/volist}
+        </el-submenu>
+        {else}
+        {if condition="$item.node_controller=='' && $item.node_action==''"}
+        <el-menu-item index="{$item.node_id}" onclick="testalert('暂无该功能')">
+            <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+            {$item.node_title}
+        </el-menu-item>
+        {else}
+        <el-menu-item index="{$item.node_id}"
+            onclick="location.href='/{$item.node_module}/{$item.node_controller}/{$item.node_action}';" {if
+            condition="$item.node_controller==strtolower($controller) && $item.node_action==strtolower($action)"
+            }class="is-active" {/if}>
+            <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+            {$item.node_title}
+        </el-menu-item>
+        {/if}
+        {/if}
+        {/volist}
+        <div style="height: 120px;"></div>
+    </el-menu>
+    <div class="version">{$siteName|default='资源管理系统'}<br>Admin Console</div>
+</el-aside>
+{else}
+<div
+    style="position: absolute;top: -72px;left: 0;width: 168px;background:#0b1220;box-shadow: 0 16px 40px rgba(2, 6, 23, 0.28);border-radius: 14px;">
+    <a class="titlehome" href="/qfadmin" style="display: flex;height: 68px;align-items:center;justify-content:center;">
+        {notempty name="siteLogo"}
+        <img src="{$siteLogo}" width="36" style="border-radius:10px;" />
+        {else /}
+        <img src="/static/admin/images/logo.png" width="36" style="border-radius:10px;" />
+        {/notempty}
+    </a>
+</div>
+{/if}
