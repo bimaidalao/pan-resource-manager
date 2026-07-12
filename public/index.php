@@ -12,9 +12,10 @@
 // [ 应用入口文件 ]
 namespace think;
 
-// 检测PHP环境
-if(version_compare(PHP_VERSION,'7.2.0','<')) die('require 7.2.0 < PHP <= 7.3.0 !');
-if(version_compare(PHP_VERSION,'7.3.0','>')) die('require 7.2.0 < PHP <= 7.3.0 !');
+// 检测 PHP 环境：与当前 ThinkPHP 依赖声明保持一致，不限制 PHP 8。
+if (version_compare(PHP_VERSION, '7.2.5', '<')) {
+    die('PHP 7.2.5 or newer is required.');
+}
 
 // 检测是否是新安装
 if(file_exists("./install") && !file_exists("./install/install.lock")){
