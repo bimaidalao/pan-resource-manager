@@ -177,6 +177,13 @@
 
                 <div class="premium-search-shell">
                     <div class="premium-search">
+                        <select class="premium-search-kind" v-model="search_kind" aria-label="资源类型">
+                            <option value="">全部</option>
+                            <option value="video">影视</option>
+                            <option value="novel">小说</option>
+                            <option value="document">文档</option>
+                            <option value="software">软件</option>
+                        </select>
                         <input type="text" v-model="keyword" placeholder="{$config.search_placeholder_home|default='搜电影、小说、教程、软件…'}" @keyup.enter="searchBtn"
                             confirm-type="search" @confirm="searchBtn" aria-label="搜索资源" class="js-main-search">
                         <div class="btn" @click="searchBtn" role="button" aria-label="搜索">

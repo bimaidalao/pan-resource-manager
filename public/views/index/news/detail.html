@@ -255,7 +255,7 @@
                     </div>
                     <div class="btns detail-sticky-actions">
                         <div class="btn"
-                            @click.stop="copyText($event,'{$detail.title|trim}','{$detail.url}','{$detail.code}')"><i
+                            @click.stop="copyText($event,'{$detail.title|trim}','{$detail.url}','{$detail.code|default=''}')"><i
                                 class="iconfont icon-fenxiang1"></i>复制分享</div>
                         {if condition="isset($detail.link_status) && $detail.link_status=='dead'"}
                         <a class="btn btnCol" href="javascript:;" style="opacity:.55;pointer-events:none;"><i

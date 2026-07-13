@@ -270,7 +270,8 @@ class Tool extends QfShop
                 // ignore
             }
         }
-        return jok('ok', ['url' => $url]);
+        $displayUrl = function_exists('cachePublicPosterLocally') ? cachePublicPosterLocally($url) : '';
+        return jok('ok', ['url' => $displayUrl !== '' ? $displayUrl : $url]);
     }
 
     /**
@@ -312,5 +313,4 @@ class Tool extends QfShop
         return jok('ok', ['items' => $out, 'count' => count($out)]);
     }
 }
-
 

@@ -1385,6 +1385,11 @@ function detectResourceKind($title = '', $url = '') {
             break;
         }
     }
+    // 搜索源常把格式放在标题最前面，例如「TXT的育儿日记」。TXT 必须是
+    // 独立格式标记，不能因为普通英文单词中碰巧含有 txt 就误判。
+    if (!$hasNovelHard && preg_match('/(?:^|[\s\[【(（_\-])txt(?:版|电子书|小说|全集|全本|完本|的|$|[\s\]】)）_\-])/iu', $raw)) {
+        $hasNovelHard = true;
+    }
     // 独立词「 小说 / 小说 」且无影视硬特征
     if (!$hasNovelHard && !$hasVideoHard) {
         if (preg_match('/(?:^|[\s\[【(（_\-])小说(?:$|[\s\]】)）_\-])/u', $raw)
@@ -1448,6 +1453,24 @@ function detectResourceKind($title = '', $url = '') {
         return ['key' => 'other', 'label' => '其他'];
     }
     return ['key' => $best, 'label' => $rules[$best]['label'] ?? '其他'];
+}
+
+/**
+ * 分类栏目是人工维护的强信号。优先使用栏目隔离影视与小说，避免同名作品
+ * （例如小说和影视改编）共用错误的详情源或海报缓存。
+ */
+function detectResourceKindWithCategory($title = '', $url = '', $categoryName = '')
+{
+    $category = mb_strtolower(trim((string) $categoryName), 'UTF-8');
+    if ($category !== '') {
+        if (preg_match('/小说|网文|电子书|书籍|文学|读书/u', $category)) {
+            return ['key' => 'novel', 'label' => '小说阅读'];
+        }
+        if (preg_match('/影视|电影|电视剧|剧集|短剧|动漫|动画|国漫|综艺|纪录片/u', $category)) {
+            return ['key' => 'video', 'label' => '影视视频'];
+        }
+    }
+    return detectResourceKind($title, $url);
 }
 
 /**
@@ -1891,6 +1914,104 @@ function resourceHttpGetJson($url, $timeout = 4.0, array $extraHeaders = [])
 }
 
 /**
+ * 将可信公开资料源的海报缓存到本站，解决豆瓣/Bangumi 防盗链导致浏览器图片失败。
+ * 仅允许固定图片域名，避免变成任意 URL 代理。
+ */
+function cachePublicPosterLocally($url = '')
+{
+    $url = trim((string) $url);
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return '';
+    }
+    $host = mb_strtolower((string) parse_url($url, PHP_URL_HOST), 'UTF-8');
+    $allowed = ['doubanio.com', 'douban.com', 'bgm.tv', 'tmdb.org', 'wikimedia.org', 'wikipedia.org'];
+    $hostOk = false;
+    foreach ($allowed as $suffix) {
+        $suffixWithDot = '.' . $suffix;
+        if ($host === $suffix || substr($host, -strlen($suffixWithDot)) === $suffixWithDot) {
+            $hostOk = true;
+            break;
+        }
+    }
+    if (!$hostOk || !function_exists('curl_init')) {
+        return '';
+    }
+
+    $dir = public_path('runtime/posters');
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    // 每天最多清理一次：删除 30 天未使用的图片，并将缓存控制在 1000 张内。
+    $cleanupStamp = root_path('runtime/cache') . DIRECTORY_SEPARATOR . 'poster_cleanup.stamp';
+    if (!is_file($cleanupStamp) || time() - (int) @filemtime($cleanupStamp) > 86400) {
+        $files = glob($dir . DIRECTORY_SEPARATOR . '*.{jpg,png,webp,gif}', GLOB_BRACE) ?: [];
+        foreach ($files as $cachedFile) {
+            if (is_file($cachedFile) && time() - (int) @filemtime($cachedFile) > 30 * 86400) {
+                @unlink($cachedFile);
+            }
+        }
+        $files = array_values(array_filter(
+            glob($dir . DIRECTORY_SEPARATOR . '*.{jpg,png,webp,gif}', GLOB_BRACE) ?: [],
+            'is_file'
+        ));
+        if (count($files) > 1000) {
+            usort($files, static function ($a, $b) {
+                return ((int) @filemtime($a)) <=> ((int) @filemtime($b));
+            });
+            foreach (array_slice($files, 0, count($files) - 1000) as $oldFile) {
+                @unlink($oldFile);
+            }
+        }
+        if (!is_dir(dirname($cleanupStamp))) {
+            @mkdir(dirname($cleanupStamp), 0755, true);
+        }
+        @touch($cleanupStamp);
+    }
+    $key = hash('sha256', $url);
+    foreach (['jpg', 'png', 'webp', 'gif'] as $ext) {
+        $existing = $dir . DIRECTORY_SEPARATOR . $key . '.' . $ext;
+        if (is_file($existing) && filesize($existing) > 128) {
+            return '/runtime/posters/' . basename($existing);
+        }
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        // 不跟随重定向，避免允许域名把请求跳转到内网或未知主机。
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 4,
+        CURLOPT_TIMEOUT => 12,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_ENCODING => '',
+        CURLOPT_HTTPHEADER => [
+            'Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+            'Referer: https://movie.douban.com/',
+            'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+        ],
+    ]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if (!is_string($body) || $code >= 400 || strlen($body) < 128 || strlen($body) > 5 * 1024 * 1024) {
+        return '';
+    }
+    $info = @getimagesizefromstring($body);
+    $types = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp', IMAGETYPE_GIF => 'gif'];
+    $ext = is_array($info) ? ($types[$info[2] ?? 0] ?? '') : '';
+    if ($ext === '') {
+        return '';
+    }
+    $file = $dir . DIRECTORY_SEPARATOR . $key . '.' . $ext;
+    if (@file_put_contents($file, $body, LOCK_EX) === false) {
+        return '';
+    }
+    return '/runtime/posters/' . basename($file);
+}
+
+/**
  * 从杂乱网盘标题提取海报搜索关键词（多候选）
  * @return string[]
  */
@@ -1908,7 +2029,7 @@ function extractPosterSearchQueries($title = '', $year = '')
     $t = preg_replace('/\([^)]*\)/u', ' ', $t);
     $t = preg_replace('/\{[^}]*\}/u', ' ', $t);
     $t = preg_replace('/\b(4K|2160[Pp]|1080[Pp]|720[Pp]|HDR10\+?|HDR|SDR|WEB-?DL|WEB-?4K|WEBRip|REMUX|BluRay|BDRip|高码率|高码|杜比视界|杜比全景声|Atmos|DDP\d?(?:\.\d)?|DTS(?:-?HD)?|HIFI|DV|HQ|60帧|60fps|内封|简繁|双语|特效字幕|中字|国语|粤语|英语)\b/iu', ' ', $t);
-    $t = preg_replace('/更新至|更至|全\d+集|共\d+集|第\d+[-~到至]\d+集|第\d+集|年番\d*|S\d{1,2}E\d{1,3}(?:\s*[-~]\s*E?\d{1,3})?/iu', ' ', $t);
+    $t = preg_replace('/更新至|更至|全\d+集|共\d+集|第\d+[-~到至]\d+集|第\d+集|\d+集|EP?\d+|年番\d*|S\d{1,2}E\d{1,3}(?:\s*[-~]\s*E?\d{1,3})?/iu', ' ', $t);
     $t = preg_replace('/[#🗄📦💾📁🏷🛍🔍⬇️·|｜\/\\\\]+/u', ' ', $t);
     $t = preg_replace('/\s+/u', ' ', trim((string) $t));
 
@@ -2069,11 +2190,11 @@ function warmResourceDetailById($sourceId, $model = null)
                 return ['ok' => false, 'reason' => 'no_model'];
             }
         }
-        $row = $model->where([
+        $row = $model->with('category')->where([
             ['source_id', '=', $sourceId],
             ['status', '=', 1],
             ['is_delete', '=', 0],
-        ])->field('source_id,title,url,code,is_type,vod_pic,vod_content')->find();
+        ])->field('source_id,source_category_id,title,url,code,is_type,vod_pic,vod_content')->find();
         if (empty($row)) {
             return ['ok' => false, 'reason' => 'not_found'];
         }
@@ -2081,23 +2202,31 @@ function warmResourceDetailById($sourceId, $model = null)
         $url = (string) ($row['url'] ?? '');
         $code = (string) ($row['code'] ?? '');
         $isType = (int) ($row['is_type'] ?? 0);
-        $hadPic = !empty($row['vod_pic']) && strpos((string) $row['vod_pic'], 'data:') !== 0
+        $storedPic = !empty($row['vod_pic']) && strpos((string) $row['vod_pic'], 'data:') !== 0
             && strpos((string) $row['vod_pic'], 'http') === 0;
 
-        $kind = function_exists('detectResourceKind')
-            ? detectResourceKind($title, $url)
-            : ['key' => 'other', 'label' => '其他'];
+        $categoryName = (string) ($row['category']['name'] ?? '');
+        $kind = function_exists('detectResourceKindWithCategory')
+            ? detectResourceKindWithCategory($title, $url, $categoryName)
+            : (function_exists('detectResourceKind')
+                ? detectResourceKind($title, $url)
+                : ['key' => 'other', 'label' => '其他']);
         $kindKey = $kind['key'] ?? 'other';
+        $strictPosterKind = in_array($kindKey, ['video', 'novel'], true);
+        $hadPic = $strictPosterKind ? false : $storedPic;
 
         $auto = function_exists('buildResourceAutoDetail')
             ? buildResourceAutoDetail($title, $url, $isType, $code)
             : [];
+        if ($code === '' && !empty($auto['code'])) {
+            $code = (string) $auto['code'];
+        }
         $clean = (string) ($auto['clean_title'] ?? $title);
         $year = (string) ($auto['year'] ?? '');
 
         // 已有 basic_info 缓存则跳过外网
         $infoCached = false;
-        $cacheKey = 'basic_info_v4_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
+        $cacheKey = 'basic_info_v5_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
         $cacheFile = root_path('runtime/cache') . DIRECTORY_SEPARATOR . $cacheKey . '.json';
         if (is_file($cacheFile) && (time() - filemtime($cacheFile) < 7 * 86400)) {
             $c = json_decode((string) @file_get_contents($cacheFile), true);
@@ -2116,13 +2245,17 @@ function warmResourceDetailById($sourceId, $model = null)
         $posterUrl = $hadPic ? (string) $row['vod_pic'] : '';
 
         // 全自动预热：按 kind 分流拉详情+海报（小说≠影视≠其它）
-        if (!$infoCached && function_exists('fetchResourceBasicInfo')) {
+        // 即使详情缓存已存在也读取一次缓存内容，以便同步预热其类型正确的海报。
+        if (function_exists('fetchResourceBasicInfo')) {
             $bi = fetchResourceBasicInfo($clean, $kindKey, $year, $url, is_array($auto) ? $auto : []);
             if (!empty($bi['ok'])) {
                 $infoOk = true;
-                if (!$hadPic && !empty($bi['poster']) && strpos((string) $bi['poster'], 'http') === 0
+                $biKindOk = $strictPosterKind
+                    ? ((string) ($bi['kind'] ?? '') === $kindKey)
+                    : (empty($bi['kind']) || $bi['kind'] === $kindKey);
+                if (!$hadPic && $biKindOk && !empty($bi['poster']) && strpos((string) $bi['poster'], 'http') === 0
                     && in_array($kindKey, ['video', 'novel'], true)
-                    && (empty($bi['kind']) || $bi['kind'] === $kindKey)) {
+                ) {
                     $posterUrl = (string) $bi['poster'];
                 }
             }
@@ -2136,7 +2269,8 @@ function warmResourceDetailById($sourceId, $model = null)
             }
         }
 
-        if ($posterUrl !== '' && !$hadPic && strpos($posterUrl, 'http') === 0) {
+        if ($posterUrl !== '' && strpos($posterUrl, 'http') === 0
+            && (!$storedPic || (string) $row['vod_pic'] !== $posterUrl)) {
             try {
                 $model->where('source_id', $sourceId)->update(['vod_pic' => $posterUrl]);
             } catch (\Throwable $e) {
@@ -2144,10 +2278,26 @@ function warmResourceDetailById($sourceId, $model = null)
             }
         }
 
+        $browserPoster = $posterUrl;
+        if ($posterUrl !== '' && strpos($posterUrl, 'http') === 0 && function_exists('cachePublicPosterLocally')) {
+            $localPoster = cachePublicPosterLocally($posterUrl);
+            if ($localPoster !== '') {
+                $browserPoster = $localPoster;
+            }
+        }
+
         // 轻量验链写缓存（不阻塞太久，失败无所谓）
+        $linkStatus = ['status' => 'unknown', 'message' => '未检测'];
         if (function_exists('checkPanShareStatus') && $url !== '') {
             try {
-                checkPanShareStatus($url, $code);
+                $linkStatus = checkPanShareStatus($url, $code);
+                // unknown 多为临时网络/风控，短暂错峰后绕过缓存重试一次。
+                if (($linkStatus['status'] ?? '') === 'unknown') {
+                    usleep(180000);
+                    $linkStatus = checkPanShareStatus($url, $code, true);
+                }
+                // 预热只记录检测结果，不自动修改资源状态。临时风控、账号失效或
+                // 提取码错误都可能产生假阴性，永久下架必须交给后台复核流程。
             } catch (\Throwable $e) {
                 // ignore
             }
@@ -2159,7 +2309,9 @@ function warmResourceDetailById($sourceId, $model = null)
             'kind' => $kindKey,
             'info_ok' => $infoOk ? 1 : 0,
             'info_cached' => $infoCached ? 1 : 0,
-            'poster' => $posterUrl,
+            'poster' => $browserPoster,
+            'link_status' => (string) ($linkStatus['status'] ?? 'unknown'),
+            'link_message' => (string) ($linkStatus['message'] ?? ''),
             'warmed' => (!$infoCached || ($posterUrl !== '' && !$hadPic)) ? 1 : 0,
         ];
     } catch (\Throwable $e) {
@@ -2184,8 +2336,8 @@ function fetchResourceBasicInfo($cleanTitle = '', $kindKey = 'other', $year = ''
         return ['ok' => false];
     }
 
-    // v4：按 kind 隔离缓存，杜绝小说/影视串台旧缓存
-    $cacheKey = 'basic_info_v4_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v5：按 kind 隔离，并采用去集数后的核心标题，杜绝小说/影视串台旧缓存。
+    $cacheKey = 'basic_info_v5_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -2792,8 +2944,8 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
         return $allowFallback ? buildFallbackPosterDataUri('资源', $kindKey) : '';
     }
 
-    // v3：kind 隔离（小说/影视/其它海报缓存互不复用）
-    $cacheKey = 'poster_v3_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v4：kind 隔离，并采用更干净的核心标题（小说/影视海报缓存互不复用）。
+    $cacheKey = 'poster_v4_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -3106,7 +3258,48 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
  * 检测网盘分享链接是否仍有效
  * @return array{status:string,message:string} status=alive|dead|unknown
  */
-function checkPanShareStatus($url = '', $code = '')
+function checkPanShareWithConfiguredAccount($url, $code, $type)
+{
+    $type = (int) $type;
+    if (!in_array($type, [0, 2], true) || !class_exists('\\netdisk\\Transfer')) {
+        return null;
+    }
+
+    $cookieKey = $type === 2 ? 'baidu_cookie' : 'quark_cookie';
+    try {
+        $cookie = (string) (function_exists('site_conf') ? site_conf($cookieKey, '') : '');
+    } catch (\Throwable $e) {
+        $cookie = '';
+    }
+    if ($cookie === '') {
+        return null;
+    }
+
+    try {
+        // isType=1 只读取分享资源信息，不转存、不删除用户网盘文件。
+        $transfer = new \netdisk\Transfer();
+        $res = $transfer->transfer([
+            'url' => (string) $url,
+            'code' => (string) $code,
+            'isType' => 1,
+        ]);
+        if (is_array($res) && (int) ($res['code'] ?? 0) === 200 && !empty($res['data'])) {
+            return ['status' => 'alive', 'message' => '已读取真实资源详情，分享有效'];
+        }
+
+        $message = (string) ($res['message'] ?? $res['msg'] ?? '');
+        foreach (['失效', '过期', '不存在', '取消', '删除', '违规', '提取码错误'] as $hint) {
+            if ($message !== '' && mb_stripos($message, $hint, 0, 'UTF-8') !== false) {
+                return ['status' => 'dead', 'message' => $message];
+            }
+        }
+    } catch (\Throwable $e) {
+        // 账号接口临时失败时继续使用公开页检查，不直接误判死链。
+    }
+    return null;
+}
+
+function checkPanShareStatus($url = '', $code = '', $forceRefresh = false)
 {
     $url = trim((string) $url);
     $code = trim((string) $code);
@@ -3121,10 +3314,10 @@ function checkPanShareStatus($url = '', $code = '')
     }
     $cacheFile = $cacheDir . DIRECTORY_SEPARATOR . $cacheKey . '.json';
     // 有效缓存 6 小时；失效缓存 24 小时（减少误杀反复探测）
-    if (is_file($cacheFile)) {
+    if (!$forceRefresh && is_file($cacheFile)) {
         $c = json_decode((string) @file_get_contents($cacheFile), true);
         if (is_array($c) && !empty($c['status'])) {
-            $ttl = ($c['status'] === 'dead') ? 86400 : 21600;
+            $ttl = $c['status'] === 'dead' ? 86400 : ($c['status'] === 'alive' ? 21600 : 600);
             if (time() - filemtime($cacheFile) < $ttl) {
                 return $c;
             }
@@ -3135,7 +3328,10 @@ function checkPanShareStatus($url = '', $code = '')
     $result = ['status' => 'unknown', 'message' => '无法判定'];
 
     try {
-        if ($type === 0) {
+        $accountResult = checkPanShareWithConfiguredAccount($url, $code, $type);
+        if (is_array($accountResult) && !empty($accountResult['status'])) {
+            $result = $accountResult;
+        } elseif ($type === 0) {
             // 夸克：优先 cookie 调 token 接口；否则看公开页特征
             $result = checkQuarkShareAlive($url, $code);
         } elseif ($type === 1) {
@@ -3330,7 +3526,7 @@ function checkGenericSharePage($url, $deadHints = null)
 /**
  * 批量过滤失效分享（用于列表）
  * - 使用缓存，未缓存的最多检测 $maxCheck 条，避免拖慢搜索
- * - 确认 dead 的会软下架 status=0（仍可后台看到）
+ * - dead 只从本次列表隐藏，不自动修改数据库状态，避免网络假阴性误下架
  *
  * @param array $items  每项需有 url / id
  * @param object|null $sourceModel
@@ -3360,7 +3556,7 @@ function filterExpiredShareItems(array $items, $sourceModel = null, $maxCheck = 
         if (is_file($cacheFile)) {
             $c = json_decode((string) @file_get_contents($cacheFile), true);
             if (is_array($c) && !empty($c['status'])) {
-                $ttl = ($c['status'] === 'dead') ? 86400 : 21600;
+                $ttl = $c['status'] === 'dead' ? 86400 : ($c['status'] === 'alive' ? 21600 : 600);
                 if (time() - filemtime($cacheFile) < $ttl) {
                     $status = $c['status'];
                 }
@@ -3374,16 +3570,6 @@ function filterExpiredShareItems(array $items, $sourceModel = null, $maxCheck = 
         }
 
         if ($status === 'dead') {
-            if ($sourceModel && $id > 0) {
-                try {
-                    $sourceModel->where('source_id', $id)->update([
-                        'status' => 0,
-                        'update_time' => time(),
-                    ]);
-                } catch (\Throwable $e) {
-                    // ignore
-                }
-            }
             continue; // 过滤掉
         }
 

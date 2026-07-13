@@ -76,13 +76,17 @@ think           ThinkPHP 命令行入口
 ### 3. 本地开发
 
 ```bash
-php think run -H 0.0.0.0 -p 8000
+./scripts/dev-server.sh
 ```
 
-如果当前 PHP 环境无法通过 `think run` 启动，也可以直接使用 PHP 内置服务器：
+启动脚本会优先选择 PHP 8.3，并拒绝当前不兼容的 PHP 8.4/8.5。也可以通过
+`PHP_BIN=/path/to/php8.3 ./scripts/dev-server.sh` 手动指定 PHP。
+
+脚本内部直接使用选中的 PHP 内置服务器，避免 `think run` 再次调用系统默认的
+PHP 8.5。需要手动启动时可以使用：
 
 ```bash
-php -S 0.0.0.0:8000 -t public public/router.php
+/opt/homebrew/opt/php@8.3/bin/php -S 0.0.0.0:8000 -t public public/router.php
 ```
 
 然后访问 `http://127.0.0.1:8000`。

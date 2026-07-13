@@ -7,6 +7,7 @@
   window.__SITE_CFG__ = {:json_encode(array_merge(function_exists('getSitePublicConfig') ? getSitePublicConfig() : [], [
     'keyword' => isset($keyword) ? $keyword : '',
     'category_id' => isset($category_id) ? (string) $category_id : '',
+    'search_kind' => isset($search_kind) ? (string) $search_kind : '',
   ]), JSON_UNESCAPED_UNICODE)};
 </script>
 <script src="__STATIC__/news/common/static/js/site-app.js?v=20260712z"></script>
