@@ -115,6 +115,11 @@ class Index extends QfShop
      */
     public function list($name, $page = 1, $cate = '')
     {
+        // ThinkPHP leaves percent-encoded UTF-8 path parameters untouched in
+        // this route (for example, Chinese search terms). Decode once before
+        // displaying the keyword or querying the database/API lines.
+        $name = rawurldecode((string) $name);
+
         $config = config("qfshop");
 
         // 被屏蔽的关键词，用逗号分隔
@@ -140,6 +145,11 @@ class Index extends QfShop
         $data['page_size'] = 10;
         $data['title'] = $name;
         $data['category_id'] = $cate;
+        $searchKind = strtolower(trim((string) input('kind', '')));
+        if (!in_array($searchKind, ['video', 'novel', 'document', 'software'], true)) {
+            $searchKind = '';
+        }
+        $data['resource_kind'] = $searchKind;
         $data['search_type'] = 1;
         $data['is_time'] = 1;
         if (!$blocked) {
@@ -222,6 +232,7 @@ class Index extends QfShop
         View::assign('page_size', $data['page_size']);
         View::assign('page_no', $data['page_no']);
         View::assign('category_id', $data['category_id']);
+        View::assign('search_kind', $searchKind);
         View::assign('seo_title', $data['title'] . ' - ' . $config['app_name']);
         View::assign('seo_keywords', $data['title'] . ',' . $config['app_keywords']);
         View::assign('seo_description', $data['title'] . ' - ' . $config['app_description']);

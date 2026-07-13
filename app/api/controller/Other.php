@@ -54,6 +54,10 @@ class Other extends QfShop
         }
         $is_type = input('is_type', 0); //0夸克  2百度 3Uc 4迅雷
         $is_show = input('is_show', 0); //0加密网址  1显示网址
+        $requestedKind = strtolower(trim((string) input('kind', '')));
+        if (!in_array($requestedKind, ['video', 'novel', 'document', 'software'], true)) {
+            $requestedKind = '';
+        }
 
         // 查找一条可用线路
         $lines = $this->ApiListModel->where('status', 1)->where('pantype', $is_type)->order('weight desc')->select()->toArray();
@@ -84,16 +88,42 @@ class Other extends QfShop
 
             foreach ($result as $item) {
                 $item['is_type'] = determineIsType($item['url']);
+                $kind = function_exists('detectResourceKind')
+                    ? detectResourceKind((string) ($item['title'] ?? ''), (string) ($item['url'] ?? ''))
+                    : ['key' => 'other', 'label' => '其他'];
+                $detectedKey = (string) ($kind['key'] ?? 'other');
+                // 用户已明确选择类型时，排除能确定为其它类型的结果；没有任何
+                // 类型信号的结果使用本次搜索上下文归类，避免同名作品被漏掉。
+                if ($requestedKind !== '' && $detectedKey !== 'other' && $detectedKey !== $requestedKind) {
+                    continue;
+                }
+                $infoData = [];
                 if (Config('qfshop.is_quan_zc') == 1) {
-                    //检测是否有效
+                    // 读取真实分享详情确认可用；临时网络失败错峰重试一次。
                     $infoData = $this->verificationUrl($item['url']);
+                    if ($infoData === 0) {
+                        usleep(180000);
+                        $infoData = $this->verificationUrl($item['url']);
+                    }
                     if (!empty($infoData['stoken'])) {
                         $item['stoken'] = $infoData['stoken'];
                     }
                     if ($infoData === 0) {
                         continue;
                     }
+                    $item['link_status'] = 'alive';
                 }
+                // 标题没有类型信号时，使用已经读取到的真实文件详情再次识别；
+                // 仍无法证明类型就不纳入指定类型结果，禁止仅凭用户选择硬贴标签。
+                if ($detectedKey === 'other' && !empty($infoData)) {
+                    $kind = $this->detectVerifiedResourceKind($item, $infoData);
+                    $detectedKey = (string) ($kind['key'] ?? 'other');
+                }
+                if ($requestedKind !== '' && $detectedKey !== $requestedKind) {
+                    continue;
+                }
+                $item['resource_kind'] = $kind['key'] ?? 'other';
+                $item['resource_kind_label'] = $kind['label'] ?? '其他';
                 if (config('qfshop.is_quan_type') != 1 && $is_show != 1) {
                     $item['url'] = encryptObject($item['url']);
                 }
@@ -861,17 +891,48 @@ class Other extends QfShop
     }
 
     /**
+     * 使用网盘只读接口返回的真实文件名、扩展名和 MIME 信息补充类型识别。
+     */
+    private function detectVerifiedResourceKind(array $item, $infoData)
+    {
+        $evidence = json_encode($infoData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($evidence)) {
+            $evidence = '';
+        }
+        // 防止异常接口返回超大结构；类型识别只需要前部文件信息。
+        if (strlen($evidence) > 12000) {
+            $evidence = substr($evidence, 0, 12000);
+        }
+        $title = trim((string) ($item['title'] ?? '') . ' ' . $evidence);
+        return function_exists('detectResourceKind')
+            ? detectResourceKind($title, (string) ($item['url'] ?? ''))
+            : ['key' => 'other', 'label' => '其他'];
+    }
+
+    /**
      * 解密url并转存
      * @return void
      */
     public function save_url()
     {
+        $rawUrl = urldecode((string) input('url', ''));
         $value = [
             'title'  => input('title', ''),
-            'url'    => urldecode(input('url', '')),
+            'url'    => $rawUrl,
             'stoken' => input('stoken', ''),
         ];
-        $value['url'] = decryptObject($value['url']);
+        // 前台全网搜默认会 encryptObject；直链模式(is_show=1)会传明文。
+        // decrypt 失败时必须回退明文，否则永远「参数不对」。
+        $decrypted = decryptObject($rawUrl);
+        if (is_string($decrypted) && $decrypted !== '') {
+            $value['url'] = $decrypted;
+        } elseif (is_array($decrypted) && !empty($decrypted['url'])) {
+            $value['url'] = (string) $decrypted['url'];
+        } elseif (preg_match('#https?://#i', $rawUrl)) {
+            $value['url'] = $rawUrl;
+        } else {
+            $value['url'] = '';
+        }
 
         if (empty($value['title']) || empty($value['url'])) {
             return jerr("参数不对");

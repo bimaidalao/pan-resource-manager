@@ -158,6 +158,18 @@ class Source extends QfShop
             $result['is_auto_detail'] = 0;
         }
 
+        // 栏目是强类型信号：同名小说与影视改编必须进入不同详情/海报链路。
+        if (function_exists('detectResourceKindWithCategory')) {
+            $categoryName = (string) ($result['category']['name'] ?? '');
+            $resolvedKind = detectResourceKindWithCategory(
+                $string,
+                (string) ($result['url'] ?? ''),
+                $categoryName
+            );
+            $result['resource_kind'] = $resolvedKind['key'] ?? 'other';
+            $result['resource_kind_label'] = $resolvedKind['label'] ?? '其他';
+        }
+
         $kindKey = (string) ($result['resource_kind'] ?? 'other');
         $result['online_ok'] = 0;
         $result['online_summary'] = '';
@@ -193,10 +205,18 @@ class Source extends QfShop
 
         // 全自动：按类型抓取基本信息/海报（无需后台配置）
         // 若库里已有封面/简介则保留，避免重复写库；没有则自动补全
-        $hadRealPic = !empty($result['vod_pic']) && strpos((string) $result['vod_pic'], 'data:') !== 0
+        $storedRealPic = !empty($result['vod_pic']) && strpos((string) $result['vod_pic'], 'data:') !== 0
             && strpos((string) $result['vod_pic'], 'http') === 0;
+        $strictPosterKind = in_array($kindKey, ['video', 'novel'], true);
+        // 旧库中的 vod_pic 没有类型来源标记，不能证明没有串台。影视/小说详情
+        // 只采用当前严格分源重新确认过的海报；未命中时显示各自的模块兜底图。
+        if ($strictPosterKind) {
+            $result['vod_pic'] = '';
+        }
+        $hadRealPic = $strictPosterKind ? false : $storedRealPic;
         $hadManualIntro = trim((string) ($result['vod_content'] ?? '')) !== ''
-            && trim((string) ($result['vod_content'] ?? '')) !== $string;
+            && trim((string) ($result['vod_content'] ?? '')) !== $string
+            && empty($result['is_auto_detail']);
 
         $result['info_card_title'] = $kindKey === 'novel' ? '书籍信息' : '';
 
@@ -262,7 +282,9 @@ class Source extends QfShop
 
                     // 无封面时用自动海报（仅影视/小说远程图；且 bi.kind 须匹配）
                     $allowRemotePoster = in_array($kindKey, ['video', 'novel'], true);
-                    $biKindOk = empty($bi['kind']) || $bi['kind'] === $kindKey;
+                    $biKindOk = $strictPosterKind
+                        ? ((string) ($bi['kind'] ?? '') === $kindKey)
+                        : (empty($bi['kind']) || $bi['kind'] === $kindKey);
                     if (!$hadRealPic && $allowRemotePoster && $biKindOk
                         && !empty($bi['poster']) && strpos((string) $bi['poster'], 'http') === 0) {
                         $result['vod_pic'] = $bi['poster'];
@@ -345,20 +367,28 @@ class Source extends QfShop
                     (string) ($result['url'] ?? ''),
                     (string) ($result['code'] ?? '')
                 );
+                if (($chk['status'] ?? '') === 'unknown') {
+                    $chk = checkPanShareStatus(
+                        (string) ($result['url'] ?? ''),
+                        (string) ($result['code'] ?? ''),
+                        true
+                    );
+                }
                 $result['link_status'] = $chk['status'] ?? 'unknown';
                 $result['link_status_text'] = $chk['message'] ?? '';
-                if (($chk['status'] ?? '') === 'dead') {
-                    try {
-                        $this->where('source_id', (int) $result['id'])->update([
-                            'status' => 0,
-                            'update_time' => time(),
-                        ]);
-                    } catch (\Throwable $e) {
-                        // ignore
-                    }
-                }
+                // 详情页仅展示检测状态，不因一次外部检测失败永久修改数据库。
             } catch (\Throwable $e) {
                 // ignore
+            }
+        }
+
+        // 浏览器不直接热链公开资料站图片；预先缓存到本站再展示。
+        if (!empty($result['vod_pic']) && strpos((string) $result['vod_pic'], 'http') === 0
+            && function_exists('cachePublicPosterLocally')) {
+            $localPoster = cachePublicPosterLocally((string) $result['vod_pic']);
+            if ($localPoster !== '') {
+                $result['vod_pic_origin'] = (string) $result['vod_pic'];
+                $result['vod_pic'] = $localPoster;
             }
         }
 
@@ -385,6 +415,10 @@ class Source extends QfShop
         $order = ['source_id' => 'desc'];
         $searchTitle = [];
         $keywordRaw = isset($data['title']) ? trim((string) $data['title']) : '';
+        $requestedKind = strtolower(trim((string) ($data['resource_kind'] ?? '')));
+        if (!in_array($requestedKind, ['video', 'novel', 'document', 'software'], true)) {
+            $requestedKind = '';
+        }
 
         // 基础条件：启用 + 未删除
         $map = [
@@ -536,9 +570,64 @@ class Source extends QfShop
             return $result;
         }
 
-        // 分页字段：带 alias 时不要重复 field 覆盖 weight
+        // 类型筛选必须先对完整候选集分类再分页，否则只过滤当前 10 条会造成
+        // 总数与翻页错误。分块扫描避免固定 2000 条上限和一次性大内存占用。
+        $items = null;
+        if ($requestedKind !== '') {
+            try {
+                $pageNo = max(1, (int) ($data['page_no'] ?? 1));
+                $pageSize = max(1, (int) ($data['page_size'] ?? 10));
+                $wantedStart = ($pageNo - 1) * $pageSize;
+                $filteredTotal = 0;
+                $items = [];
+                $chunkSize = 500;
+                $chunkCount = max(1, (int) ceil((int) $result['total_result'] / $chunkSize));
+                for ($chunkPage = 1; $chunkPage <= $chunkCount; $chunkPage++) {
+                    $chunkQuery = clone $query;
+                    if ($usedAlias) {
+                        $candidates = $chunkQuery->order($order)
+                            ->with('category')
+                            ->page($chunkPage, $chunkSize)
+                            ->select()
+                            ->toArray();
+                    } else {
+                        $candidates = $chunkQuery->order($order)
+                            ->field('source_id as id, source_category_id, title, is_type, code, url, update_time as time, is_time')
+                            ->with('category')
+                            ->page($chunkPage, $chunkSize)
+                            ->select()
+                            ->toArray();
+                    }
+                    foreach ($candidates as $candidate) {
+                        $candidateTitle = trim((string) ($candidate['title'] ?? ''));
+                        $candidateKind = function_exists('detectResourceKindWithCategory')
+                            ? detectResourceKindWithCategory(
+                                $candidateTitle,
+                                (string) ($candidate['url'] ?? ''),
+                                (string) ($candidate['category']['name'] ?? '')
+                            )
+                            : detectResourceKind($candidateTitle, (string) ($candidate['url'] ?? ''));
+                        if (($candidateKind['key'] ?? 'other') !== $requestedKind) {
+                            continue;
+                        }
+                        if ($filteredTotal >= $wantedStart && count($items) < $pageSize) {
+                            $items[] = $candidate;
+                        }
+                        $filteredTotal++;
+                    }
+                }
+                $result['total_result'] = $filteredTotal;
+            } catch (\Throwable $e) {
+                $items = [];
+                $result['total_result'] = 0;
+            }
+        }
+
+        // 无类型筛选时沿用数据库分页；带 alias 时不要重复 field 覆盖 weight。
         try {
-            if ($usedAlias) {
+            if ($items !== null) {
+                // 已在上方完成分类与分页。
+            } elseif ($usedAlias) {
                 $items = $query->order($order)
                     ->with('category')
                     ->withSearch(['page', 'order'], $data)
@@ -577,9 +666,11 @@ class Source extends QfShop
             $item['times'] = !empty($item['time']) ? substr((string) $item['time'], 0, 10) : '';
             unset($item['time']);
 
-            $resourceKind = function_exists('detectResourceKind')
-                ? detectResourceKind($title, $item['url'] ?? '')
-                : ['key' => 'other', 'label' => '其他'];
+            $resourceKind = function_exists('detectResourceKindWithCategory')
+                ? detectResourceKindWithCategory($title, $item['url'] ?? '', (string) ($item['category']['name'] ?? ''))
+                : (function_exists('detectResourceKind')
+                    ? detectResourceKind($title, $item['url'] ?? '')
+                    : ['key' => 'other', 'label' => '其他']);
             $item['resource_kind'] = $resourceKind['key'] ?? 'other';
             $item['resource_kind_label'] = $resourceKind['label'] ?? '其他';
         }

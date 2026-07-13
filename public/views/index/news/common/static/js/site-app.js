@@ -62,6 +62,7 @@
       const dialogItem = ref({});
       const is_type = ref(0);
       const pc_type = ref(0);
+      const search_kind = ref(cfg.search_kind || "");
 
       // 与 PHP detectResourceKind 对齐：扩展名优先，小说≠影视，禁止「小说」误伤电影名
       const resourceKind = function (title, link) {
@@ -78,6 +79,11 @@
         var novelHard = ["完本", "全本", "网文", "电子书", "精校", "女频", "男频", "网络小说", "小说txt", "txt全集", "小说下载", "小说合集", "修仙小说", "言情小说", "玄幻小说"];
         var hasVideoHard = videoHard.some(function (k) { return text.indexOf(k) !== -1; });
         var hasNovelHard = novelHard.some(function (k) { return text.indexOf(k) !== -1; });
+        // 识别「TXT的育儿日记」这类以文件格式开头的小说资源；只匹配独立
+        // TXT 标记，避免普通英文单词包含 txt 时误判。
+        if (!hasNovelHard && /(?:^|[\s\[【(（_\-])txt(?:版|电子书|小说|全集|全本|完本|的|$|[\s\]】)）_\-])/i.test(raw)) {
+          hasNovelHard = true;
+        }
         if (!hasNovelHard && !hasVideoHard) {
           if (/(?:^|[\s\[【(（_\-])小说(?:$|[\s\]】)）_\-])/.test(raw) || /小说完整版|小说全集|长篇小说|网络小说/.test(raw)) {
             hasNovelHard = true;
@@ -167,7 +173,8 @@
           return showMessage(cfg.search_input_empty || "请输入你要搜索的内容~", "error");
         }
         var current = window.location.href;
-        var target = "/s/" + keyword.value + ".html";
+        var target = "/s/" + encodeURIComponent(keyword.value) + ".html";
+        if (search_kind.value) target += "?kind=" + encodeURIComponent(search_kind.value);
         if (current.indexOf("/s/") !== -1 || current.indexOf("/d/") !== -1) {
           window.location.href = target;
         } else {
@@ -205,10 +212,17 @@
       const changeBtn = function (e) {
         var category_id = cfg.category_id || "";
         if (category_id) {
-          window.location.href = "/s/" + keyword.value + "-" + e + "-" + category_id + ".html";
+          window.location.href = "/s/" + encodeURIComponent(keyword.value) + "-" + e + "-" + category_id + ".html" + (search_kind.value ? "?kind=" + encodeURIComponent(search_kind.value) : "");
         } else {
-          window.location.href = "/s/" + keyword.value + "-" + e + ".html";
+          window.location.href = "/s/" + encodeURIComponent(keyword.value) + "-" + e + ".html" + (search_kind.value ? "?kind=" + encodeURIComponent(search_kind.value) : "");
         }
+      };
+
+      const changeSearchKind = function () {
+        if (!keyword.value) return;
+        var target = "/s/" + encodeURIComponent(keyword.value) + ".html";
+        if (search_kind.value) target += "?kind=" + encodeURIComponent(search_kind.value);
+        window.location.href = target;
       };
 
       const copyText = async function (event, title, link, code) {
@@ -477,6 +491,8 @@
         is_type: is_type,
         pc_type: pc_type,
         resourceKind: resourceKind,
+        search_kind: search_kind,
+        changeSearchKind: changeSearchKind,
         priceVisible: priceVisible,
         closePricePop: closePricePop,
         themeMode: themeMode,

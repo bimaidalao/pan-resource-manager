@@ -940,6 +940,20 @@ html[data-theme="light"] .premium-hero h1 em {
   color: var(--p-text);
   font-size: 15px;
 }
+.premium-search-kind {
+  flex: 0 0 auto;
+  width: 76px;
+  height: 34px;
+  padding: 0 20px 0 4px;
+  border: 0;
+  border-right: 1px solid var(--p-line);
+  outline: 0;
+  color: var(--p-soft);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
 .premium-search input::placeholder { color: var(--p-dim); }
 .premium-search .btn {
   height: 42px;
@@ -958,6 +972,11 @@ html[data-theme="light"] .premium-hero h1 em {
 .premium-search .btn .iconfont {
   font-size: 18px;
   color: #1a1408;
+}
+@media (max-width: 480px) {
+  .premium-search { gap: 6px; padding-left: 10px; }
+  .premium-search-kind { width: 62px; padding-right: 12px; font-size: 12px; }
+  .premium-search .btn { padding: 0 13px; }
 }
 .premium-hero-art {
   position: relative;

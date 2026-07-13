@@ -40,6 +40,46 @@
         height: 3px;
         border-radius: 2px;
     }
+    .resource-type-select {
+        width: 100%;
+        min-width: 92px;
+        height: 100%;
+        padding: 0 24px 0 12px;
+        border: 0;
+        outline: 0;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+    }
+    .resource-kind-filter {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding: 2px 0 14px;
+        scrollbar-width: none;
+    }
+    .resource-kind-filter::-webkit-scrollbar { display: none; }
+    .resource-kind-filter button {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 0 15px;
+        border: 1px solid rgba(148,163,184,.2);
+        border-radius: 999px;
+        color: inherit;
+        background: rgba(148,163,184,.07);
+        cursor: pointer;
+    }
+    .resource-kind-filter button.active {
+        color: #18130b;
+        border-color: transparent;
+        background: var(--p-gold, #e9b95f);
+        font-weight: 700;
+    }
+    @media (max-width: 480px) {
+        .searchBox.searchList .search .select { min-width: 88px; }
+        .resource-type-select { min-width: 88px; padding-left: 8px; font-size: 13px; }
+    }
 </style>
 </head>
 
@@ -49,16 +89,14 @@
         {include file="news/common/head"}
         <div class="searchBox searchList">
             <div class="search">
-                <div class="select" v-if="currentSource === 1" style="display: none !important;">
-                    <span>{{ is_type==2 ? '百度' : is_type==3 ? 'UC' : is_type==4 ? '迅雷' : '夸克' }}</span>
-                    <i class="iconfont icon-xiala" style="font-size: 14px"></i>
-                </div>
-                <div class="select" @click="selectBtn" v-else>
-                    {if condition="$category_id == ''"}全部{/if}
-                    {foreach $category as $key=>$vo }
-                    {if condition='$category_id == $vo.id'}{$vo.name}{/if}
-                    {/foreach}
-                    <i class="iconfont icon-xiala" style="font-size: 14px"></i>
+                <div class="select">
+                    <select class="resource-type-select" v-model="search_kind" @change="changeSearchKind" aria-label="资源类型">
+                        <option value="">全部类型</option>
+                        <option value="video">影视</option>
+                        <option value="novel">小说</option>
+                        <option value="document">文档</option>
+                        <option value="software">软件</option>
+                    </select>
                 </div>
                 <input type="text" v-model="keyword" placeholder="{$config.search_placeholder|default='输入关键字进行搜索'}" @keyup.enter="searchBtn"
                     confirm-type="search" @confirm="searchBtn">
@@ -80,9 +118,9 @@
                     </div>
 
                     <div class="box" v-else>
-                        <a href="/s/{$keyword}.html" class="{eq name='category_id' value='' }active{/eq}">全部</a>
+                        <a href="/s/{$keyword}.html{notempty name='search_kind'}?kind={$search_kind}{/notempty}" class="{eq name='category_id' value='' }active{/eq}">全部</a>
                         {foreach $category as $key=>$vo }
-                        <a href="/s/{$keyword}-1-{$vo.id}.html"
+                        <a href="/s/{$keyword}-1-{$vo.id}.html{notempty name='search_kind'}?kind={$search_kind}{/notempty}"
                             class="{if condition='$category_id == $vo.id'}active{/if}">{$vo.name}</a>
                         {/foreach}
                     </div>
@@ -99,9 +137,16 @@
                 </div>
                 {/if}
 
+                <div class="resource-kind-filter" aria-label="资源类型筛选">
+                    <button type="button" :class="{active: search_kind==''}" @click="search_kind=''; changeSearchKind()">全部</button>
+                    <button type="button" :class="{active: search_kind=='video'}" @click="search_kind='video'; changeSearchKind()">影视</button>
+                    <button type="button" :class="{active: search_kind=='novel'}" @click="search_kind='novel'; changeSearchKind()">小说</button>
+                    <button type="button" :class="{active: search_kind=='document'}" @click="search_kind='document'; changeSearchKind()">文档</button>
+                    <button type="button" :class="{active: search_kind=='software'}" @click="search_kind='software'; changeSearchKind()">软件</button>
+                </div>
+
                 <div class="result-bar" v-show="currentSource === 0">
-                    <h3 v-if="total_result>0">「<span>{$keyword}</span>」· {{total_result}} 条结果</h3>
-                    <h3 v-else>「<span>{$keyword}</span>」· {$list.total_result} 条结果</h3>
+                    <h3>「<span>{$keyword}</span>」· {{total_result}} 条结果</h3>
                     <span class="hint">{$config.local_result_hint|default='自动识别类型 · 点击立即访问跳转网盘'}</span>
                 </div>
 
@@ -109,9 +154,9 @@
                     {if condition="$list.total_result>0"}
                     <div class="list result-list">
                         {foreach $list.items as $key=>$vo }
-                        <div class="item result-card">
-                            <!-- 本地库不做假详情：标题=立即访问网盘 -->
-                            <a href="javascript:;" onclick="linkBtn(this)" data-index="{$key}" class="title" title="立即访问网盘">
+                        <div class="item result-card" data-source-id="{$vo.id}">
+                            <!-- 标题进入已预热详情；右侧按钮仍可直接访问网盘。 -->
+                            <a href="/d/{$vo.id}.html" class="title" title="查看资源详情">
                                 {$vo.name|raw}
                             </a>
                             <div class="meta-row type">
@@ -132,7 +177,7 @@
                             </div>
                             <div class="btns">
                                 <div class="btn"
-                                    @click.stop="copyText($event,'{$vo.title|trim}','{$vo.url}','{$vo.code}')"><i
+                                    @click.stop="copyText($event,'{$vo.title|trim}','{$vo.url}','{$vo.code|default=''}')"><i
                                         class="iconfont icon-fenxiang1"></i>复制分享</div>
                                 <a href="javascript:;" onclick="linkBtn(this)" data-index="{$key}" class="btn btn-primary">
                                     <i class="iconfont icon-yun_o" aria-hidden="true"></i>
@@ -234,7 +279,7 @@
                                 {{item.title}}
                             </a>
                             <div class="meta-row type">
-                                <span class="resource-kind" :class="'kind-' + resourceKind(item.title, item.url).key">{{ resourceKind(item.title, item.url).label }}</span>
+                                <span class="resource-kind" :class="'kind-' + (item.resource_kind || resourceKind(item.title, item.url).key)">{{ item.resource_kind_label || resourceKind(item.title, item.url).label }}</span>
                                 <span class="pan-badge" v-if="item.is_type==1">阿里云盘</span>
                                 <span class="pan-badge" v-else-if="item.is_type==2">百度网盘</span>
                                 <span class="pan-badge" v-else-if="item.is_type==3">UC网盘</span>
@@ -292,6 +337,7 @@
     </div>
     {include file="news/common/footer"}
     <script type="text/javascript" charset="utf-8">
+        app.total_result = {$list.total_result};
         app.rankList = JSON.parse('<?php echo json_encode($rankList, JSON_UNESCAPED_UNICODE); ?>');
         for (const item of app.rankList) {
             axios.get('/api/tool/ranking', {
@@ -320,6 +366,26 @@
                     return axios.get('/api/tool/prefetchDetail', {
                         params: { ids: chunk.join(',') },
                         timeout: 90000
+                    }).then(function (res) {
+                        var rows = res && res.data && res.data.data && res.data.data.items;
+                        if (!Array.isArray(rows)) return;
+                        rows.forEach(function (row) {
+                            // 让详情页海报直接命中浏览器缓存，不阻塞搜索结果展示。
+                            if (row && row.poster && !/^data:/i.test(row.poster)) {
+                                var img = new Image();
+                                img.referrerPolicy = 'no-referrer';
+                                img.src = row.poster;
+                            }
+                            // 后台二次确认失效时立刻从当前结果移除，避免用户点入死链。
+                            if (row && row.link_status === 'dead') {
+                                var card = document.querySelector('.result-card[data-source-id="' + row.id + '"]');
+                                if (card) card.remove();
+                            }
+                        });
+                        var visible = document.querySelectorAll('.result-card').length;
+                        var removed = rows.filter(function (row) { return row && row.link_status === 'dead'; }).length;
+                        if (removed > 0) app.total_result = Math.max(0, Number(app.total_result || 0) - removed);
+                        if (visible === 0 && typeof switchSource === 'function') switchSource(1);
                     }).catch(function () {});
                 };
                 var run = function () {
@@ -331,11 +397,8 @@
                     });
                     a.concat(b, c).forEach(function (id) { warmed[id] = 1; });
                 };
-                if (window.requestIdleCallback) {
-                    requestIdleCallback(function () { setTimeout(run, 300); }, { timeout: 2000 });
-                } else {
-                    setTimeout(run, 700);
-                }
+                // 搜索页一展示就先预热首屏；后两批继续错峰后台加载。
+                setTimeout(run, 0);
                 // 鼠标/触碰某条结果时优先预热该条（未在首批时）
                 document.addEventListener('pointerover', function (ev) {
                     var a = ev.target && ev.target.closest ? ev.target.closest('a[href*="/d/"]') : null;
@@ -452,7 +515,8 @@
 
             const params = new URLSearchParams({
                 title: app.keyword || '',
-                is_type: app.is_type
+                is_type: app.is_type,
+                kind: app.search_kind || ''
             });
             currentEventSource = new EventSource('/api/other/web_search?' + params.toString());
 
@@ -466,6 +530,8 @@
                 }
                 try {
                     const data = JSON.parse(event.data);
+                    const detected = data.resource_kind || app.resourceKind(data.title, data.url).key;
+                    if (app.search_kind && detected !== app.search_kind) return;
                     app.QList.push(data);
                 } catch (e) {
                     console.error('解析数据失败:', e);

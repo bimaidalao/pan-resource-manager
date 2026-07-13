@@ -4,14 +4,24 @@ namespace netdisk;
 
 class Transfer
 {
+    /** @var string 资源地址 */
+    public $url = '';
+    /** @var int 有效期 1永久 2临时 */
+    public $expired_type = 1;
+    /** @var string 夸克专用 - 分享时带上这个文件的fid */
+    public $ad_fid = '';
+    /** @var string 分享码 */
+    public $code = '';
+    /** @var int 0转存并分享 1直接获取资源信息 */
+    public $isType = 0;
+
     public function __construct()
     {
-        // 原 Open 类的构造函数内容
-        $this->url = ""; // 资源地址
-        $this->expired_type = 1; //有效期 1分享永久 2临时
-        $this->ad_fid = ""; //夸克专用 - 分享时带上这个文件的fid
-        $this->code = ""; //分享码
-        $this->isType = 0; //0 转存并分享后的资源信息  1直接获取资源信息 
+        $this->url = '';
+        $this->expired_type = 1;
+        $this->ad_fid = '';
+        $this->code = '';
+        $this->isType = 0;
     }
 
     public function getFiles($type = 0, $pdir_fid = 0)
