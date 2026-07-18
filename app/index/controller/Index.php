@@ -94,9 +94,30 @@ class Index extends QfShop
             ? buildHomeKindModules($this->SourceModel, $kindLimit, 500)
             : [];
 
+        // 首页右侧主视觉未上传自定义图片时，自动使用已经预热成功的站内
+        // 海报。只读取现成 vod_pic，不在首页请求外部资料源。
+        $heroShowcase = [];
+        try {
+            $heroShowcase = $this->SourceModel
+                ->where($map)
+                ->where('vod_pic', '<>', '')
+                ->field('source_id as id,title,vod_pic as poster')
+                ->order(['source_id' => 'desc'])
+                ->limit(3)
+                ->select()
+                ->toArray();
+            $heroShowcase = array_values(array_filter($heroShowcase, function ($row) {
+                $poster = trim((string) ($row['poster'] ?? ''));
+                return $poster !== '' && strpos($poster, 'data:') !== 0;
+            }));
+        } catch (\Throwable $e) {
+            $heroShowcase = [];
+        }
+
         View::assign('newList', $newList);
         View::assign('hotList', $hotList);
         View::assign('kindModules', $kindModules);
+        View::assign('heroShowcase', $heroShowcase);
         View::assign('config', $config);
         View::assign('rankList', $rankList);
         View::assign('fixed', 1);

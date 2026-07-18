@@ -211,7 +211,30 @@
                 </div>
             </div>
 
-            <div class="premium-hero-art" aria-hidden="true">
+            <div class="premium-hero-art">
+                {notempty name="config.hero_visual_image"}
+                {notempty name="config.hero_visual_link"}<a class="premium-hero-custom" href="{$config.hero_visual_link}" target="_blank" rel="noreferrer">{else /}<div class="premium-hero-custom">{/notempty}
+                    <img src="{$config.hero_visual_image}" alt="{$config.hero_visual_title|default='热门资源推荐'}" decoding="async">
+                    <span>{$config.hero_visual_title|default='热门资源推荐'}</span>
+                {notempty name="config.hero_visual_link"}</a>{else /}</div>{/notempty}
+                {else /}
+                {notempty name="heroShowcase"}
+                <div class="premium-hero-showcase" aria-label="热门资源推荐">
+                    <div class="premium-showcase-copy">
+                        <small>FEATURED</small>
+                        <strong>{$config.hero_visual_title|default='热门资源推荐'}</strong>
+                        <span>内容持续更新，点击查看资源详情</span>
+                    </div>
+                    <div class="premium-showcase-stack">
+                        {volist name="heroShowcase" id="hero"}
+                        <a class="premium-showcase-card card-{$key+1}" href="/d/{$hero.id}.html" title="{$hero.title}">
+                            <img src="{$hero.poster}" alt="{$hero.title}" loading="eager" referrerpolicy="no-referrer">
+                            <span>{$hero.title}</span>
+                        </a>
+                        {/volist}
+                    </div>
+                </div>
+                {else /}
                 <div class="orbit orbit-a"></div>
                 <div class="orbit orbit-b"></div>
                 <div class="premium-hero-poster {notempty name='config.home_bg'}has-bg{/notempty}"
@@ -227,6 +250,8 @@
                 <div class="premium-float film"><strong>▶</strong><span>影视</span></div>
                 <div class="premium-float book"><strong>文</strong><span>小说</span></div>
                 <div class="premium-float doc"><strong>▤</strong><span>资料</span></div>
+                {/notempty}
+                {/notempty}
             </div>
         </section>
 

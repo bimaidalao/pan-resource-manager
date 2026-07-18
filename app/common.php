@@ -87,6 +87,9 @@ function getSitePublicConfig()
         'hero_title_fallback' => (string) site_conf('hero_title_fallback', '电影、小说与资料'),
         'hero_lead_fallback' => (string) site_conf('hero_lead_fallback', '搜索网盘资源，复制分享，跳转打开。'),
         'hero_eyebrow_fallback' => (string) site_conf('hero_eyebrow_fallback', '网盘资源搜索'),
+        'hero_visual_image' => (string) site_conf('hero_visual_image', ''),
+        'hero_visual_title' => (string) site_conf('hero_visual_title', '热门资源推荐'),
+        'hero_visual_link' => (string) site_conf('hero_visual_link', ''),
     ];
 }
 
@@ -118,6 +121,9 @@ function ensureSiteCustomConfKeys()
         'hero_title_fallback' => ['首页副标题兜底', 'app_title 为空时首页 em 文案', '电影、小说与资料', 3, 68],
         'hero_lead_fallback' => ['首页简介兜底', 'app_description 为空时', '搜索网盘资源，复制分享，跳转打开。', 3, 67],
         'hero_eyebrow_fallback' => ['首页眉题兜底', 'app_subname 为空时', '网盘资源搜索', 3, 66],
+        'hero_visual_image' => ['首页右侧展示图', '首页搜索框右侧大图，建议 1200×800 或 3:2；留空时自动展示站内最新海报', '', 3, 65, 4],
+        'hero_visual_title' => ['首页右侧展示标题', '自定义大图底部显示的标题', '热门资源推荐', 3, 64],
+        'hero_visual_link' => ['首页右侧展示链接', '点击自定义大图跳转的地址；留空则不跳转', '', 3, 63],
     ];
 
     try {
