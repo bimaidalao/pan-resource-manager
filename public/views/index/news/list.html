@@ -111,6 +111,31 @@
         overflow: hidden;
     }
     .remote-detail-loading { margin-top: 8px; font-size: 12px; opacity: .55; }
+    .Qloading{padding:32px 16px;text-align:center;min-height:72px}
+    .net-scan-loader{
+        margin:0 auto;width:fit-content;max-width:100%;
+        font-weight:bold;
+        font-family:monospace,"SF Mono",Menlo,Consolas,monospace;
+        font-size:28px;line-height:1em;
+        color:transparent!important;
+        -webkit-text-fill-color:transparent!important;
+        background-image:radial-gradient(circle closest-side,
+          #ffffff 0%, #ffffff 58%,
+          var(--theme-theme,#1e80ff) 78%,
+          var(--theme-theme,#1e80ff) 100%);
+        background-position:right;
+        background-size:calc(200% - 1em) 100%;
+        background-repeat:no-repeat;
+        -webkit-background-clip:text;
+        background-clip:text;
+        animation:net-scan-l24 1s infinite alternate linear;
+        border:0!important;transform:none!important;box-shadow:none!important;
+        padding:0;outline:0;
+    }
+    @keyframes net-scan-l24{
+        0%{background-position:right}
+        100%{background-position:left}
+    }
     @media (max-width: 480px) {
         .searchBox.searchList .search .select { min-width: 88px; }
         .resource-type-select { min-width: 88px; padding-left: 8px; font-size: 13px; }
@@ -226,7 +251,7 @@
                     </div>
                     <div class="page">
                         {notempty name="list.total_result"}
-                        <el-pagination background layout="prev, pager, next" :pager-count="3"
+                        <el-pagination background layout="prev, pager, next" :pager-count="5"
                             :default-current-page="{$page_no}" :default-page-size="{$page_size}"
                             :total="{$list.total_result}" @change="changeBtn"></el-pagination>
                         {/notempty}
@@ -271,37 +296,6 @@
                       光斑过大整行洗蓝就没有放大感。
                       class 不用 .loader，避开旧 product 的 !important 锁死。
                     -->
-                    <style>
-                      .Qloading{padding:32px 16px;text-align:center;min-height:72px}
-                      .net-scan-loader{
-                        margin:0 auto;width:fit-content;max-width:100%;
-                        font-weight:bold;
-                        font-family:monospace,"SF Mono",Menlo,Consolas,monospace;
-                        font-size:28px;line-height:1em;
-                        color:transparent!important;
-                        -webkit-text-fill-color:transparent!important;
-                        /* 圆斑直径≈字高：白心硬，字身主题色 */
-                        background-image:radial-gradient(circle closest-side,
-                          #ffffff 0%,
-                          #ffffff 58%,
-                          var(--theme-theme,#1e80ff) 78%,
-                          var(--theme-theme,#1e80ff) 100%);
-                        background-position:right;
-                        /* 高度 100% 才能 closest-side = 字高圆斑（放大镜） */
-                        background-size:calc(200% - 1em) 100%;
-                        background-repeat:no-repeat;
-                        -webkit-background-clip:text;
-                        background-clip:text;
-                        animation:net-scan-l24 1s infinite alternate linear;
-                        border:0!important;transform:none!important;box-shadow:none!important;
-                        padding:0;outline:0;
-                      }
-                      @keyframes net-scan-l24{
-                        0%{background-position:right}
-                        100%{background-position:left}
-                      }
-                      @media (max-width:768px){.net-scan-loader{font-size:20px}}
-                    </style>
                     <div class="Qloading" v-if="QLoading" aria-live="polite" aria-busy="true">
                         <div class="net-scan-loader">{$config.quan_loading_text|default=' 全网检索中，请稍等...'}</div>
                     </div>
@@ -340,7 +334,7 @@
                         </div>
                     </div>
 
-                    <block v-if="!QLoading && QList.length==0">
+                    <template v-if="!QLoading && QList.length==0">
                         {if condition="$blocked == 1"}
                         <div style="padding-top: 16px;">
                             <el-alert title="搜索词中包含违规内容，请修改后重试" style="padding: 12px 0; font-weight: bold;" type="error"
@@ -355,7 +349,7 @@
                                     href="javascript:;">{$config.local_source_name|default='本地库'}</a>”&nbsp;获取资源</div>
                             {/if}
                         </el-empty>
-                    </block>
+                    </template>
                 </div>
             </div>
             <div class="right">
@@ -578,6 +572,10 @@
                 }
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.search_ready) {
+                        setQLoading(false);
+                        return;
+                    }
                     if (data.detail_update && data.result_key) {
                         const detailIndex = app.QList.findIndex(function (row) {
                             return row && row.result_key === data.result_key;

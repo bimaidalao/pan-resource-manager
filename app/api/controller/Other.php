@@ -32,6 +32,13 @@ class Other extends QfShop
         header('Connection: keep-alive');
         header('X-Accel-Buffering: no'); // 防止 Nginx 缓冲
 
+        // 立即建立 SSE 流，避免上游搜索接口稍慢时被反向代理误判为超时/500。
+        echo ": connected\n\n";
+        if (ob_get_level() > 0) {
+            @ob_flush();
+        }
+        flush();
+
         $title = input('title', '');
 
         // 被屏蔽的关键词，用逗号分隔
@@ -73,23 +80,41 @@ class Other extends QfShop
         }
 
         $detailBudget = 8;
+        $resultLimit = 10;
+        $emittedCount = 0;
+        $seenResultKeys = [];
+        $detailCache = [];
+        $readySent = false;
         foreach ($lines as $line) {
             $result = [];
             $pendingDetails = [];
             echo "线路：" . $line['name'] . "\n\n";
             $type = $line['type'] ?? 'api';
-            if ($type === 'tg') {
-                $result = $this->handleTg($line, $title);
-            } else if ($type === 'api') {
-                $result = $this->handleApi($line, $title);
-            } else if ($type === 'html') {
-                $result = $this->handleWeb($line, $title);
-            } else if ($type === 'kk') {
-                $result = $this->handleKk($line, $title, $line['num']);
+            try {
+                if ($type === 'tg') {
+                    $result = $this->handleTg($line, $title);
+                } else if ($type === 'api') {
+                    $result = $this->handleApi($line, $title);
+                } else if ($type === 'html') {
+                    $result = $this->handleWeb($line, $title);
+                } else if ($type === 'kk') {
+                    $result = $this->handleKk($line, $title, $line['num']);
+                }
+            } catch (\Throwable $e) {
+                // 单条上游线路异常不能让整个 SSE 请求变成 HTTP 500。
+                continue;
             }
 
             foreach ($result as $item) {
+                if ($emittedCount >= $resultLimit) {
+                    break;
+                }
                 $item['is_type'] = determineIsType($item['url']);
+                $resultKey = hash('sha256', (string) ($item['url'] ?? ''));
+                if (isset($seenResultKeys[$resultKey])) {
+                    continue;
+                }
+                $seenResultKeys[$resultKey] = true;
                 $kind = function_exists('detectResourceKind')
                     ? detectResourceKind((string) ($item['title'] ?? ''), (string) ($item['url'] ?? ''))
                     : ['key' => 'other', 'label' => '其他'];
@@ -127,7 +152,7 @@ class Other extends QfShop
                 $item['resource_kind'] = $kind['key'] ?? 'other';
                 $item['resource_kind_label'] = $kind['label'] ?? '其他';
                 $rawItem = $item;
-                $item['result_key'] = hash('sha256', (string) ($item['url'] ?? ''));
+                $item['result_key'] = $resultKey;
                 $item['detail_state'] = $detailBudget > 0 ? 'loading' : 'skipped';
                 if (config('qfshop.is_quan_type') != 1 && $is_show != 1) {
                     $item['url'] = encryptObject($item['url']);
@@ -137,6 +162,7 @@ class Other extends QfShop
                 echo "data: " . str_replace(["\n", "\r"], '', json_encode($item, JSON_UNESCAPED_UNICODE)) . "\n\n";
                 ob_flush();
                 flush();
+                $emittedCount++;
 
                 if ($detailBudget > 0) {
                     $detailBudget--;
@@ -148,15 +174,39 @@ class Other extends QfShop
                 }
             }
 
+            // 列表已可用就结束前台的“聚合中”状态；详情和海报继续在同一
+            // 连接中后台补回，不再让用户一直看着加载动画。
+            if (!$readySent && $emittedCount > 0) {
+                echo "data: " . json_encode([
+                    'search_ready' => 1,
+                    'result_count' => $emittedCount,
+                ], JSON_UNESCAPED_UNICODE) . "\n\n";
+                ob_flush();
+                flush();
+                $readySent = true;
+            }
+
             // 当前线路的链接先全部展示，再逐条补充资料，避免第一个公开资料源
             // 响应较慢时阻塞同一线路后续搜索结果。
             foreach ($pendingDetails as $pending) {
-                $detail = $this->buildSearchItemDetail($pending['item'], $pending['kind']);
+                $detailKey = $this->buildSearchItemDetailKey($pending['item'], $pending['kind']);
+                if ($detailKey !== '' && isset($detailCache[$detailKey])) {
+                    $detail = $detailCache[$detailKey];
+                } else {
+                    $detail = $this->buildSearchItemDetail($pending['item'], $pending['kind']);
+                    if ($detailKey !== '') {
+                        $detailCache[$detailKey] = $detail;
+                    }
+                }
                 $detail['result_key'] = $pending['result_key'];
                 $detail['detail_update'] = 1;
                 echo "data: " . str_replace(["\n", "\r"], '', json_encode($detail, JSON_UNESCAPED_UNICODE)) . "\n\n";
                 ob_flush();
                 flush();
+            }
+
+            if ($emittedCount >= $resultLimit) {
+                break;
             }
         }
         echo "data: [DONE]\n\n";
@@ -397,6 +447,38 @@ class Other extends QfShop
                 'poster' => $fallback,
             ];
         }
+    }
+
+    /**
+     * 同一作品的不同资源标题共用一次公开详情查询，避免十张同名卡片串行
+     * 请求十次资料源。资源链接仍逐条验证，不影响有效性判断。
+     */
+    private function buildSearchItemDetailKey(array $item, array $kind)
+    {
+        $title = trim((string) ($item['title'] ?? ''));
+        $kindKey = (string) ($kind['key'] ?? 'other');
+        if ($title === '') {
+            return '';
+        }
+
+        $auto = function_exists('buildResourceAutoDetail')
+            ? buildResourceAutoDetail(
+                $title,
+                (string) ($item['url'] ?? ''),
+                (int) ($item['is_type'] ?? 0),
+                (string) ($item['code'] ?? '')
+            )
+            : [];
+        $cleanTitle = trim((string) ($auto['clean_title'] ?? $title));
+        $year = trim((string) ($auto['year'] ?? ''));
+        if (function_exists('extractPosterSearchQueries')) {
+            $queries = extractPosterSearchQueries($cleanTitle, $year);
+            if (!empty($queries[0])) {
+                $cleanTitle = (string) $queries[0];
+            }
+        }
+
+        return mb_strtolower($kindKey . '|' . $cleanTitle . '|' . $year, 'UTF-8');
     }
 
     /**
@@ -970,6 +1052,12 @@ class Other extends QfShop
      */
     private function verificationUrl($url)
     {
+        $cacheKey = 'web_link_verify_v1_' . sha1((string) $url);
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && array_key_exists('ok', $cached)) {
+            return !empty($cached['ok']) ? ($cached['data'] ?? []) : 0;
+        }
+
         $code = '';
         if (preg_match('/\?pwd=([^,\s&]+)/', $url, $pwdMatch)) {
             $code = trim($pwdMatch[1]);
@@ -983,11 +1071,14 @@ class Other extends QfShop
         $transfer = new \netdisk\Transfer();
         $res = $transfer->transfer($urlData);
 
-        if ($res['code'] !== 200) {
+        if (($res['code'] ?? 0) !== 200) {
+            Cache::set($cacheKey, ['ok' => 0, 'data' => []], 60);
             return 0;
         }
 
-        return $res['data'];
+        $data = $res['data'] ?? [];
+        Cache::set($cacheKey, ['ok' => 1, 'data' => $data], 300);
+        return $data;
     }
 
     /**
