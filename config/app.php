@@ -24,8 +24,9 @@ return [
     // 禁止URL访问的应用列表（自动多应用模式有效）
     'deny_app_list'    => [],
 
-    // 异常页面的模板文件
-    'exception_tmpl'   => __DIR__ . "/../app/pages/" . (env('APP_DEBUG') ? "exception.php" : "error.php"),
+    // 公开站点始终使用脱敏错误页。详细异常仍写入 runtime 日志，避免因
+    // APP_DEBUG 误开而向访客暴露服务器路径、SQL、配置和调用栈。
+    'exception_tmpl'   => __DIR__ . '/../app/pages/error.php',
 
     // 错误显示信息,非调试模式有效
     'error_message'    => '系统异常，请稍后再试。',
