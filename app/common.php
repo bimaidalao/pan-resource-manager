@@ -1931,9 +1931,28 @@ function resourceHttpGetJson($url, $timeout = 4.0, array $extraHeaders = [])
  * 将可信公开资料源的海报缓存到本站，解决豆瓣/Bangumi 防盗链导致浏览器图片失败。
  * 仅允许固定图片域名，避免变成任意 URL 代理。
  */
-function cachePublicPosterLocally($url = '')
+function cachePublicPosterLocally($url = '', $download = true)
 {
     $url = trim((string) $url);
+    // 兼容旧版本生成的公开地址：服务器通常禁止直接访问 runtime，发现旧
+    // 文件时迁移到 uploads/posters 后返回新的公开 URL。
+    if (strpos($url, '/runtime/posters/') === 0) {
+        $name = basename(parse_url($url, PHP_URL_PATH));
+        if (preg_match('/^[a-f0-9]{64}\.(?:jpg|png|webp|gif)$/i', $name)) {
+            $oldFile = public_path('runtime/posters') . DIRECTORY_SEPARATOR . $name;
+            $newDir = public_path('uploads/posters');
+            $newFile = $newDir . DIRECTORY_SEPARATOR . $name;
+            if (is_file($oldFile)) {
+                if (!is_dir($newDir)) {
+                    @mkdir($newDir, 0755, true);
+                }
+                if (is_file($newFile) || @copy($oldFile, $newFile)) {
+                    return '/uploads/posters/' . $name;
+                }
+            }
+        }
+        return '';
+    }
     if ($url === '' || !preg_match('#^https?://#i', $url)) {
         return '';
     }
@@ -1951,7 +1970,7 @@ function cachePublicPosterLocally($url = '')
         return '';
     }
 
-    $dir = public_path('runtime/posters');
+    $dir = public_path('uploads/posters');
     if (!is_dir($dir)) {
         @mkdir($dir, 0755, true);
     }
@@ -1985,8 +2004,17 @@ function cachePublicPosterLocally($url = '')
     foreach (['jpg', 'png', 'webp', 'gif'] as $ext) {
         $existing = $dir . DIRECTORY_SEPARATOR . $key . '.' . $ext;
         if (is_file($existing) && filesize($existing) > 128) {
-            return '/runtime/posters/' . basename($existing);
+            return '/uploads/posters/' . basename($existing);
         }
+        // 已有旧缓存时直接迁移，不重新请求公开资料源。
+        $old = public_path('runtime/posters') . DIRECTORY_SEPARATOR . $key . '.' . $ext;
+        if (is_file($old) && filesize($old) > 128 && @copy($old, $existing)) {
+            return '/uploads/posters/' . basename($existing);
+        }
+    }
+
+    if (!$download) {
+        return '';
     }
 
     $ch = curl_init($url);
@@ -2022,7 +2050,7 @@ function cachePublicPosterLocally($url = '')
     if (@file_put_contents($file, $body, LOCK_EX) === false) {
         return '';
     }
-    return '/runtime/posters/' . basename($file);
+    return '/uploads/posters/' . basename($file);
 }
 
 /**

@@ -439,15 +439,26 @@ class Index extends QfShop
             return redirect('/');
         }
 
-
-        $data['id'] = $id;
-        $detail = $this->SourceModel->getDetail($data);
+        // 详情首屏只读取数据库和现成海报缓存。公开资料、海报下载与验链由
+        // 搜索页 prefetchDetail / 详情页 fetchPoster 异步执行，禁止外部接口
+        // 异常把整个详情页打成 500。
+        try {
+            $detail = $this->getLocalDetail((int) $id);
+        } catch (\Throwable $e) {
+            @error_log('[detail-page][local] ' . get_class($e) . ': ' . $e->getMessage());
+            $detail = null;
+        }
 
         if (empty($detail)) {
             return redirect('/');
         }
 
-        $rankList = $this->SourceCategoryModel->field('name,image')->where([['status', '=', 0], ['is_sys', '=', 1]])->order('sort desc')->select();
+        $rankList = [];
+        try {
+            $rankList = $this->SourceCategoryModel->field('name,image')->where([['status', '=', 0], ['is_sys', '=', 1]])->order('sort desc')->select();
+        } catch (\Throwable $e) {
+            $rankList = [];
+        }
 
         //热门排行榜数据
         $hotList = [];
@@ -458,40 +469,32 @@ class Index extends QfShop
                 $hotList[] = array(
                     'name' => $value['name'],
                     'image' => $value['image'],
-                    'list' => json_decode(file_get_contents($cacheFile), true),
+                    'list' => json_decode((string) @file_get_contents($cacheFile), true),
                 );
             }
         }
 
-
-        //相关资源
-        $map[] = ['status', '=', 1];
-        $map[] = ['is_delete', '=', 0];
-        $fc = new VicWord();
-        $keywords = $fc->getAutoWord(preg_replace('/[\（\（][^\）]*[\）\）]/u', '', $detail['title']));
-        $keywords = filterAndExtractWords($keywords);
-        $keywords[] = ''; //这个是为了在没有相关资源时不至于获取不到资源
-        $weightExpr = [];
-        foreach ($keywords as $keyword) {
-            $weightExpr[] = "IF(title LIKE '%{$keyword}%' OR description LIKE '%{$keyword}%', 1, 0)";
-            $searchTitle[] = $keyword;
+        // 相关资源改为稳定的同分类最新列表，不再拼接分词权重 SQL。
+        $sameList = [];
+        try {
+            $sameQuery = $this->SourceModel->where([
+                ['status', '=', 1],
+                ['is_delete', '=', 0],
+                ['source_id', '<>', (int) $detail['id']],
+            ]);
+            if (!empty($detail['source_category_id'])) {
+                $sameQuery->where('source_category_id', (int) $detail['source_category_id']);
+            }
+            $sameList = $sameQuery->field('source_id,title')->order('source_id', 'desc')->limit(10)->select();
+        } catch (\Throwable $e) {
+            $sameList = [];
         }
-        $weightExpr = implode(' + ', $weightExpr);
-        // 在查询中添加权重计算和排序
-        $query = $this->SourceModel->alias('a')
-            ->field('a.*, (' . $weightExpr . ') as weight')->where($map)
-            ->where(function ($query) use ($keywords) {
-                foreach ($keywords as $keyword) {
-                    $query->whereOr('title', 'like', '%' . trim($keyword) . '%')
-                        ->whereOr('description', 'like', '%' . trim($keyword) . '%');
-                }
-            });
-        $order = ['weight' => 'desc', 'source_id' => 'desc'];
-        $sameList = $query->where('source_id', '<>', $detail['id'])->order($order)->limit(10)->select();
-
-
 
         $config = config("qfshop");
+        if (!is_array($config)) {
+            $config = [];
+        }
+        $config += ['app_name' => 'Pan Resource Manager', 'app_keywords' => '', 'app_description' => ''];
 
         View::assign('sameList', $sameList);
         View::assign('hotList', $hotList);
@@ -510,6 +513,102 @@ class Index extends QfShop
             View::assign('seo_description', $detail['title'] . ' - ' . $config['app_description']);
         }
         return View::fetch('/news/detail');
+    }
+
+    /**
+     * 构建不访问外网的详情首屏数据。
+     */
+    private function getLocalDetail($id)
+    {
+        $row = $this->SourceModel
+            ->with('category')
+            ->where([
+                ['status', '=', 1],
+                ['is_delete', '=', 0],
+                ['source_id', '=', (int) $id],
+            ])
+            ->field('source_id as id,source_category_id,title,url,code,description,create_time as time,update_time,vod_content,vod_pic,is_type,is_time,page_views')
+            ->find();
+        if (empty($row)) {
+            return null;
+        }
+        try {
+            $this->SourceModel->where('source_id', (int) $id)->inc('page_views')->update();
+        } catch (\Throwable $e) {
+            // 浏览量失败不影响详情页。
+        }
+        $detail = $row->toArray();
+        $title = trim(str_replace("'", '', (string) ($detail['title'] ?? '')));
+        $detail['title'] = $title;
+        $time = $detail['time'] ?? $detail['update_time'] ?? '';
+        $detail['times'] = is_numeric($time) ? date('Y-m-d', (int) $time) : ($time ? substr((string) $time, 0, 10) : '');
+
+        $auto = function_exists('buildResourceAutoDetail')
+            ? buildResourceAutoDetail($title, (string) ($detail['url'] ?? ''), (int) ($detail['is_type'] ?? 0), (string) ($detail['code'] ?? ''))
+            : [];
+        $kind = function_exists('detectResourceKindWithCategory')
+            ? detectResourceKindWithCategory($title, (string) ($detail['url'] ?? ''), (string) ($detail['category']['name'] ?? ''))
+            : $this->safeResourceKind($title, (string) ($detail['url'] ?? ''));
+        $detail['resource_kind'] = (string) ($kind['key'] ?? ($auto['resource_kind'] ?? 'other'));
+        $detail['resource_kind_label'] = (string) ($kind['label'] ?? ($auto['resource_kind_label'] ?? '其他'));
+        $detail['pan_name'] = (string) ($auto['pan_name'] ?? '');
+        $detail['clean_title'] = (string) ($auto['clean_title'] ?? $title);
+        $detail['auto_year'] = (string) ($auto['year'] ?? '');
+        $detail['auto_episode'] = (string) ($auto['episode'] ?? '');
+        $detail['auto_size'] = (string) ($auto['size'] ?? '');
+        $detail['auto_qualities'] = $auto['qualities'] ?? [];
+        $detail['auto_langs'] = $auto['langs'] ?? [];
+        $detail['auto_tags'] = $auto['tags'] ?? [];
+        $detail['share_id'] = (string) ($auto['share_id'] ?? '');
+        if (empty($detail['code']) && !empty($auto['code'])) {
+            $detail['code'] = (string) $auto['code'];
+        }
+        $manual = trim((string) ($detail['vod_content'] ?? ''));
+        if ($manual === '' || $manual === $title) {
+            $detail['vod_content'] = (string) ($auto['summary'] ?? $title);
+            $detail['is_auto_detail'] = 1;
+        } else {
+            $detail['is_auto_detail'] = 0;
+        }
+
+        foreach (['online_summary', 'online_image', 'online_url', 'online_source', 'online_title', 'info_source', 'info_source_url', 'info_title', 'info_year', 'info_rating', 'info_card', 'info_duration', 'info_intro'] as $key) {
+            $detail[$key] = '';
+        }
+        foreach (['info_genres', 'info_countries', 'info_languages', 'info_directors', 'info_authors', 'info_actors'] as $key) {
+            $detail[$key] = [];
+        }
+        $detail['online_ok'] = 0;
+        $detail['info_ok'] = 0;
+        $detail['info_rating_count'] = 0;
+        $detail['info_episodes'] = '';
+        $detail['info_kind'] = $detail['resource_kind'];
+        $detail['poster_auto'] = 0;
+        $detail['poster_fallback'] = 0;
+        $detail['poster_query'] = $detail['clean_title'];
+        $detail['link_status'] = 'unknown';
+        $detail['link_status_text'] = '后台检测中';
+
+        $poster = trim((string) ($detail['vod_pic'] ?? ''));
+        if ($poster !== '' && function_exists('cachePublicPosterLocally')) {
+            $cachedPoster = cachePublicPosterLocally($poster, false);
+            if ($cachedPoster !== '') {
+                $detail['vod_pic_origin'] = $poster;
+                $poster = $cachedPoster;
+                $detail['poster_auto'] = 1;
+            } elseif (strpos($poster, '/runtime/posters/') === 0 || strpos($poster, 'http') === 0) {
+                // 未缓存的远程图交给浏览器异步 fetchPoster，不阻塞首屏。
+                $poster = '';
+            }
+        }
+        if ($poster === '') {
+            $poster = function_exists('buildFallbackPosterDataUri')
+                ? buildFallbackPosterDataUri($detail['clean_title'], $detail['resource_kind'])
+                : '';
+            $detail['poster_fallback'] = 1;
+        }
+        $detail['vod_pic'] = $poster;
+        unset($detail['time']);
+        return $detail;
     }
 
 

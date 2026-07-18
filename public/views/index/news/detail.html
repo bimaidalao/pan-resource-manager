@@ -332,7 +332,7 @@
                 timeout: 15000
             }).then(function (res) {
                 var url = res && res.data && res.data.data && res.data.data.url;
-                if (!url || String(url).indexOf('http') !== 0) return;
+                if (!url || (!/^https?:\/\//i.test(String(url)) && String(url).charAt(0) !== '/')) return;
                 var img = document.querySelector('.detail-cover img');
                 var hero = document.querySelector('.detail-hero');
                 if (img) {

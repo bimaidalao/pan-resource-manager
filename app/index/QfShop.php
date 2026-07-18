@@ -61,7 +61,7 @@ abstract class QfShop
      */
     private function refreshFrontendTemplateCache()
     {
-        $version = '20260719-search-template-v3';
+        $version = '20260719-detail-poster-v4';
         $runtime = root_path('runtime');
         $marker = $runtime . DIRECTORY_SEPARATOR . '.frontend_template_version';
         if (is_file($marker) && trim((string) @file_get_contents($marker)) === $version) {
