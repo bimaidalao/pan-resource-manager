@@ -2244,7 +2244,7 @@ function warmResourceDetailById($sourceId, $model = null)
 
         // 已有 basic_info 缓存则跳过外网
         $infoCached = false;
-        $cacheKey = 'basic_info_v6_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
+        $cacheKey = 'basic_info_v7_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
         $cacheFile = root_path('runtime/cache') . DIRECTORY_SEPARATOR . $cacheKey . '.json';
         if (is_file($cacheFile) && (time() - filemtime($cacheFile) < 7 * 86400)) {
             $c = json_decode((string) @file_get_contents($cacheFile), true);
@@ -2354,8 +2354,8 @@ function fetchResourceBasicInfo($cleanTitle = '', $kindKey = 'other', $year = ''
         return ['ok' => false];
     }
 
-    // v6：按 kind 隔离，并采用去集数后的核心标题，杜绝小说/影视串台旧缓存。
-    $cacheKey = 'basic_info_v6_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v7：除 kind 隔离外，候选还必须通过年份和续作/季数校验。
+    $cacheKey = 'basic_info_v7_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -2590,6 +2590,9 @@ function fetchVideoBasicInfo(array $queries, $cleanTitle, $year = '', $kindKey =
             $name = (string) ($row['title'] ?? $row['sub_title'] ?? '');
             $sid = (string) ($row['id'] ?? '');
             if ($name === '' || $sid === '') {
+                continue;
+            }
+            if (!resourceMetadataCandidateMatches($cleanTitle, $name, $year, (string) ($row['year'] ?? ''))) {
                 continue;
             }
             $score = resourceTitleSimilarity($query, $name);
@@ -2875,6 +2878,10 @@ function fetchBangumiBasicInfo(array $queries, $cleanTitle, $year, array $allowT
                 continue;
             }
             $label = (string) (($row['name_cn'] ?? '') ?: ($row['name'] ?? ''));
+            $rowYear = (string) (($row['date'] ?? '') ?: ($row['air_date'] ?? ''));
+            if (!resourceMetadataCandidateMatches($cleanTitle, $label, $year, $rowYear)) {
+                continue;
+            }
             $sc = resourceTitleSimilarity($query, $label);
             $q2 = preg_replace('/\s+/u', '', mb_strtolower($query, 'UTF-8'));
             $l2 = preg_replace('/\s+/u', '', mb_strtolower($label, 'UTF-8'));
@@ -2907,6 +2914,11 @@ function fetchBangumiBasicInfo(array $queries, $cleanTitle, $year, array $allowT
         // 再次校验 type
         $dtype = (int) ($detail['type'] ?? $pick['type'] ?? 0);
         if ($dtype && !empty($allowTypes) && !in_array($dtype, $allowTypes, true)) {
+            continue;
+        }
+        $detailLabel = (string) (($detail['name_cn'] ?? '') ?: ($detail['name'] ?? $pick['name_cn'] ?? ''));
+        $detailYear = substr((string) ($detail['date'] ?? ''), 0, 4);
+        if (!resourceMetadataCandidateMatches($cleanTitle, $detailLabel, $year, $detailYear)) {
             continue;
         }
         $tags = [];
@@ -2963,8 +2975,8 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
         return $allowFallback ? buildFallbackPosterDataUri('资源', $kindKey) : '';
     }
 
-    // v5：kind 隔离，并采用更干净的核心标题（小说/影视海报缓存互不复用）。
-    $cacheKey = 'poster_v5_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v6：kind 隔离，并拒绝年份或续作编号不一致的海报候选。
+    $cacheKey = 'poster_v6_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -3042,6 +3054,9 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
                         if ($name === '' || $img === '') {
                             continue;
                         }
+                        if (!resourceMetadataCandidateMatches($cleanTitle, $name, $year, (string) ($row['year'] ?? ''))) {
+                            continue;
+                        }
                         $score = resourceTitleSimilarity($query, $name);
                         if ($score >= 52 && $score > $bestScore) {
                             $bestScore = $score;
@@ -3067,6 +3082,10 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
                             continue;
                         }
                         $label = (string) (($row['name_cn'] ?? '') ?: ($row['name'] ?? ''));
+                        $rowYear = (string) (($row['date'] ?? '') ?: ($row['air_date'] ?? ''));
+                        if (!resourceMetadataCandidateMatches($cleanTitle, $label, $year, $rowYear)) {
+                            continue;
+                        }
                         $score = resourceTitleSimilarity($query, $label);
                         $img = $row['images']['large'] ?? $row['images']['common'] ?? '';
                         if ($img && $score >= 60 && $score > $bestScore) {
@@ -3104,6 +3123,9 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
                         if ($name === '' || $img === '') {
                             continue;
                         }
+                        if (!resourceMetadataCandidateMatches($cleanTitle, $name, $year, (string) ($row['year'] ?? ''))) {
+                            continue;
+                        }
                         $score = resourceTitleSimilarity($query, $name);
                         if ($year !== '' && !empty($row['year']) && (string) $row['year'] === (string) $year) {
                             $score = min(100, $score + 8);
@@ -3132,6 +3154,10 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
                         $name = (string) ($row['name'] ?? '');
                         $label = $nameCn !== '' ? $nameCn : $name;
                         if ($label === '') {
+                            continue;
+                        }
+                        $rowYear = (string) (($row['date'] ?? '') ?: ($row['air_date'] ?? ''));
+                        if (!resourceMetadataCandidateMatches($cleanTitle, $label, $year, $rowYear)) {
                             continue;
                         }
                         $score = max(
@@ -3643,6 +3669,54 @@ function resourceTitleSimilarity($a, $b)
         $score = max($score, (int) round($pct * 0.85));
     }
     return min(100, $score);
+}
+
+/**
+ * 校验公开资料候选是否真的是当前资源。标题相似只是第一层；当资源标题
+ * 明确包含续作/季数或年份时，候选缺少对应标记或年份相差过大就拒绝。
+ * 例如「沧元图3 (2026)」不能再命中「沧元图 (2023)」。
+ */
+function resourceMetadataCandidateMatches($requestedTitle, $candidateTitle, $requestedYear = '', $candidateYear = '')
+{
+    $requestedTitle = trim((string) $requestedTitle);
+    $candidateTitle = trim((string) $candidateTitle);
+    if ($requestedTitle === '' || $candidateTitle === '') {
+        return false;
+    }
+
+    $requestedYear = preg_match('/(?:19|20)\d{2}/', (string) $requestedYear, $ym) ? (int) $ym[0] : 0;
+    $candidateYear = preg_match('/(?:19|20)\d{2}/', (string) $candidateYear, $cm) ? (int) $cm[0] : 0;
+    if ($requestedYear && $candidateYear && abs($requestedYear - $candidateYear) > 1) {
+        return false;
+    }
+
+    $sequenceOf = static function ($value) {
+        $value = trim((string) $value);
+        if (preg_match('/(?:第\s*)?([二三四五六七八九十]|[2-9]|1[0-9])\s*(?:季|部|篇|章)\s*$/u', $value, $m)) {
+            $map = ['二' => '2', '三' => '3', '四' => '4', '五' => '5', '六' => '6', '七' => '7', '八' => '8', '九' => '9', '十' => '10'];
+            return $map[$m[1]] ?? (string) ((int) $m[1]);
+        }
+        if (preg_match('/(?:^|[^A-Za-z])S(\d{1,2})(?:E\d+)?\s*$/iu', $value, $m)) {
+            return (string) ((int) $m[1]);
+        }
+        // 中文片名直接以 2–19 结尾时通常是续作编号；排除分辨率、集数等。
+        if (!preg_match('/(?:集|话|期|章|季|部|P|K)\s*$/iu', $value)
+            && preg_match('/[\x{4e00}-\x{9fff}]\s*(1[0-9]|[2-9])\s*$/u', $value, $m)) {
+            return (string) ((int) $m[1]);
+        }
+        return '';
+    };
+
+    $requestedSequence = $sequenceOf($requestedTitle);
+    if ($requestedSequence !== '') {
+        $candidateSequence = $sequenceOf($candidateTitle);
+        if ($candidateSequence === '' || $candidateSequence !== $requestedSequence) {
+            return false;
+        }
+        return resourceTitleSimilarity($requestedTitle, $candidateTitle) >= 45;
+    }
+
+    return resourceTitleSimilarity($requestedTitle, $candidateTitle) >= 60;
 }
 
 /**
