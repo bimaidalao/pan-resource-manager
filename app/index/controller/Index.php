@@ -177,10 +177,13 @@ class Index extends QfShop
         $blocked = false;
         foreach ($banKeywords as $keyword) {
             $keyword = trim($keyword);
+            if ($keyword === '') {
+                continue;
+            }
             $containsKeyword = function_exists('mb_strpos')
                 ? mb_strpos($name, $keyword, 0, 'UTF-8') !== false
                 : strpos($name, $keyword) !== false;
-            if ($keyword !== '' && $containsKeyword) {
+            if ($containsKeyword) {
                 $blocked = true;
                 break;
             }
