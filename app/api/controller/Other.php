@@ -357,14 +357,14 @@ class Other extends QfShop
                 $url,
                 is_array($auto) ? $auto : []
             );
-            if (empty($info['ok']) || (!empty($info['kind']) && (string) $info['kind'] !== $kindKey)) {
-                return ['detail_state' => 'miss', 'detail_ok' => 0];
-            }
+            $infoOk = !empty($info['ok'])
+                && (empty($info['kind']) || (string) $info['kind'] === $kindKey);
 
-            $poster = trim((string) ($info['poster'] ?? ''));
-            if ($poster === '' && in_array($kindKey, ['video', 'novel'], true)
-                && function_exists('fetchResourcePoster')) {
-                $poster = (string) fetchResourcePoster($cleanTitle, $kindKey, $year, '', false);
+            $poster = $infoOk ? trim((string) ($info['poster'] ?? '')) : '';
+            if ($poster === '' && function_exists('fetchResourcePoster')) {
+                // 详情源偶发失败时仍独立拉海报；真实海报都失败才使用按类型生成的
+                // 本地封面，保证搜索卡片永远不会出现空白或破图。
+                $poster = (string) fetchResourcePoster($cleanTitle, $kindKey, $year, '', true);
             }
             if ($poster !== '' && strpos($poster, 'http') === 0
                 && function_exists('cachePublicPosterLocally')) {
@@ -375,20 +375,27 @@ class Other extends QfShop
             }
 
             return [
-                'detail_state' => 'ready',
-                'detail_ok' => 1,
-                'detail_source' => (string) ($info['source'] ?? ''),
-                'detail_source_url' => (string) ($info['source_url'] ?? ''),
-                'detail_title' => (string) ($info['title'] ?? $cleanTitle),
-                'detail_year' => (string) ($info['year'] ?? $year),
-                'detail_rating' => (string) ($info['rating'] ?? ''),
-                'detail_rating_count' => (int) ($info['rating_count'] ?? 0),
-                'detail_genres' => array_slice((array) ($info['genres'] ?? []), 0, 6),
-                'detail_intro' => trim((string) ($info['intro'] ?? '')),
+                'detail_state' => $infoOk ? 'ready' : ($poster !== '' ? 'poster_only' : 'miss'),
+                'detail_ok' => $infoOk ? 1 : 0,
+                'detail_source' => $infoOk ? (string) ($info['source'] ?? '') : '',
+                'detail_source_url' => $infoOk ? (string) ($info['source_url'] ?? '') : '',
+                'detail_title' => $infoOk ? (string) ($info['title'] ?? $cleanTitle) : $cleanTitle,
+                'detail_year' => $infoOk ? (string) ($info['year'] ?? $year) : $year,
+                'detail_rating' => $infoOk ? (string) ($info['rating'] ?? '') : '',
+                'detail_rating_count' => $infoOk ? (int) ($info['rating_count'] ?? 0) : 0,
+                'detail_genres' => $infoOk ? array_slice((array) ($info['genres'] ?? []), 0, 6) : [],
+                'detail_intro' => $infoOk ? trim((string) ($info['intro'] ?? '')) : '',
                 'poster' => $poster,
             ];
         } catch (\Throwable $e) {
-            return ['detail_state' => 'miss', 'detail_ok' => 0];
+            $fallback = function_exists('buildFallbackPosterDataUri')
+                ? buildFallbackPosterDataUri($cleanTitle ?? $title, $kindKey)
+                : '';
+            return [
+                'detail_state' => $fallback !== '' ? 'poster_only' : 'miss',
+                'detail_ok' => 0,
+                'poster' => $fallback,
+            ];
         }
     }
 

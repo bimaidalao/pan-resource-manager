@@ -2037,8 +2037,12 @@ function extractPosterSearchQueries($title = '', $year = '')
     $t = preg_replace('/\([^)]*\)/u', ' ', $t);
     $t = preg_replace('/\{[^}]*\}/u', ' ', $t);
     $t = preg_replace('/\b(4K|2160[Pp]|1080[Pp]|720[Pp]|HDR10\+?|HDR|SDR|WEB-?DL|WEB-?4K|WEBRip|REMUX|BluRay|BDRip|高码率|高码|杜比视界|杜比全景声|Atmos|DDP\d?(?:\.\d)?|DTS(?:-?HD)?|HIFI|DV|HQ|60帧|60fps|内封|简繁|双语|特效字幕|中字|国语|粤语|英语)\b/iu', ' ', $t);
-    $t = preg_replace('/更新至|更至|全\d+集|共\d+集|第\d+[-~到至]\d+集|第\d+集|\d+集|EP?\d+|年番\d*|S\d{1,2}E\d{1,3}(?:\s*[-~]\s*E?\d{1,3})?/iu', ' ', $t);
+    $t = preg_replace('/(?:更新|更)(?:至)?\s*(?:第)?\d+(?:集)?|更新完结|已完结|全\d+集|共\d+集|第\d+[-~到至]\d+集|第\d+集|\d+集|EP?\d+|年番\d*|S\d{1,2}E\d{1,3}(?:\s*[-~]\s*E?\d{1,3})?/iu', ' ', $t);
     $t = preg_replace('/[#🗄📦💾📁🏷🛍🔍⬇️·|｜\/\\\\]+/u', ' ', $t);
+    // 搜索接口常把字段标签直接拼进标题，例如「动漫名称：光阴之外」。
+    // 这类标签若不去掉，公开资料源会把整串当片名，导致详情和海报均 miss。
+    $t = preg_replace('/^\s*(?:(?:资源|动漫|动画|影视|电影|电视剧|剧集|视频|小说|书籍|文档|软件)\s*)?(?:名称|标题|片名|书名|资源名)\s*[：:]\s*/u', '', $t);
+    $t = preg_replace('/^[\p{So}\p{Sk}\p{Cf}\s]+/u', '', $t);
     $t = preg_replace('/\s+/u', ' ', trim((string) $t));
 
     $queries = [];
@@ -2234,7 +2238,7 @@ function warmResourceDetailById($sourceId, $model = null)
 
         // 已有 basic_info 缓存则跳过外网
         $infoCached = false;
-        $cacheKey = 'basic_info_v5_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
+        $cacheKey = 'basic_info_v6_' . md5(mb_strtolower($clean . '|' . $kindKey . '|' . $year, 'UTF-8'));
         $cacheFile = root_path('runtime/cache') . DIRECTORY_SEPARATOR . $cacheKey . '.json';
         if (is_file($cacheFile) && (time() - filemtime($cacheFile) < 7 * 86400)) {
             $c = json_decode((string) @file_get_contents($cacheFile), true);
@@ -2344,8 +2348,8 @@ function fetchResourceBasicInfo($cleanTitle = '', $kindKey = 'other', $year = ''
         return ['ok' => false];
     }
 
-    // v5：按 kind 隔离，并采用去集数后的核心标题，杜绝小说/影视串台旧缓存。
-    $cacheKey = 'basic_info_v5_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v6：按 kind 隔离，并采用去集数后的核心标题，杜绝小说/影视串台旧缓存。
+    $cacheKey = 'basic_info_v6_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -2367,7 +2371,8 @@ function fetchResourceBasicInfo($cleanTitle = '', $kindKey = 'other', $year = ''
                 return $c;
             }
         }
-        if (is_array($c) && empty($c['ok']) && (time() - filemtime($cacheFile) < 1800)) {
+        // 外部资料源偶发风控/超时时不能把 miss 锁半小时；短缓存后允许重试。
+        if (is_array($c) && empty($c['ok']) && (time() - filemtime($cacheFile) < 120)) {
             return $c;
         }
     }
@@ -2952,8 +2957,8 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
         return $allowFallback ? buildFallbackPosterDataUri('资源', $kindKey) : '';
     }
 
-    // v4：kind 隔离，并采用更干净的核心标题（小说/影视海报缓存互不复用）。
-    $cacheKey = 'poster_v4_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
+    // v5：kind 隔离，并采用更干净的核心标题（小说/影视海报缓存互不复用）。
+    $cacheKey = 'poster_v5_' . md5(mb_strtolower($cleanTitle . '|' . $kindKey . '|' . $year, 'UTF-8'));
     $cacheDir = root_path('runtime/cache');
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -2970,8 +2975,8 @@ function fetchResourcePoster($cleanTitle = '', $kindKey = 'other', $year = '', $
                 return $cached;
             }
         } elseif (is_array($c) && array_key_exists('url', $c) && $c['url'] === '') {
-            // 空结果只缓存 20 分钟
-            if (time() - filemtime($cacheFile) < 1200) {
+            // 外部图片源偶发风控时短暂 miss，2 分钟后允许自动恢复。
+            if (time() - filemtime($cacheFile) < 120) {
                 return $allowFallback ? buildFallbackPosterDataUri($cleanTitle, $kindKey) : '';
             }
         }
