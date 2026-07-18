@@ -76,9 +76,46 @@
         background: var(--p-gold, #e9b95f);
         font-weight: 700;
     }
+    .remote-result-card {
+        display: grid !important;
+        grid-template-columns: 78px minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+    }
+    .remote-result-card.no-poster { grid-template-columns: minmax(0, 1fr); }
+    .remote-result-poster {
+        width: 78px;
+        aspect-ratio: 2 / 3;
+        border-radius: 10px;
+        object-fit: cover;
+        background: rgba(148,163,184,.12);
+        box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+    .remote-result-content { min-width: 0; }
+    .remote-detail-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        margin-top: 9px;
+        font-size: 12px;
+        opacity: .78;
+    }
+    .remote-detail-intro {
+        margin: 8px 0 0;
+        font-size: 13px;
+        line-height: 1.65;
+        opacity: .75;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
+    .remote-detail-loading { margin-top: 8px; font-size: 12px; opacity: .55; }
     @media (max-width: 480px) {
         .searchBox.searchList .search .select { min-width: 88px; }
         .resource-type-select { min-width: 88px; padding-left: 8px; font-size: 13px; }
+        .remote-result-card { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+        .remote-result-poster { width: 64px; border-radius: 8px; }
     }
 </style>
 </head>
@@ -274,20 +311,31 @@
                         <span class="hint" v-else>{$config.quan_result_hint|default='点击获取资源'}</span>
                     </div>
                     <div class="list">
-                        <div class="item" v-for="(item,index) in QList" :key="index">
-                            <a href="javascript:;" onclick="getUrlBtn(this)" :data-index="index" class="title">
-                                {{item.title}}
-                            </a>
-                            <div class="meta-row type">
-                                <span class="resource-kind" :class="'kind-' + (item.resource_kind || resourceKind(item.title, item.url).key)">{{ item.resource_kind_label || resourceKind(item.title, item.url).label }}</span>
-                                <span class="pan-badge" v-if="item.is_type==1">阿里云盘</span>
-                                <span class="pan-badge" v-else-if="item.is_type==2">百度网盘</span>
-                                <span class="pan-badge" v-else-if="item.is_type==3">UC网盘</span>
-                                <span class="pan-badge" v-else-if="item.is_type==4">迅雷网盘</span>
-                                <span class="pan-badge" v-else>夸克网盘</span>
-                            </div>
-                            <div class="btns2" onclick="getUrlBtn(this)" :data-index="index">
-                                获取资源
+                        <div class="item remote-result-card" :class="{'no-poster': !item.poster}" v-for="(item,index) in QList" :key="item.result_key || index">
+                            <img v-if="item.poster" class="remote-result-poster" :src="item.poster" :alt="item.detail_title || item.title" loading="lazy" referrerpolicy="no-referrer">
+                            <div class="remote-result-content">
+                                <a href="javascript:;" onclick="getUrlBtn(this)" :data-index="index" class="title">
+                                    {{item.title}}
+                                </a>
+                                <div class="meta-row type">
+                                    <span class="resource-kind" :class="'kind-' + (item.resource_kind || resourceKind(item.title, item.url).key)">{{ item.resource_kind_label || resourceKind(item.title, item.url).label }}</span>
+                                    <span class="pan-badge" v-if="item.is_type==1">阿里云盘</span>
+                                    <span class="pan-badge" v-else-if="item.is_type==2">百度网盘</span>
+                                    <span class="pan-badge" v-else-if="item.is_type==3">UC网盘</span>
+                                    <span class="pan-badge" v-else-if="item.is_type==4">迅雷网盘</span>
+                                    <span class="pan-badge" v-else>夸克网盘</span>
+                                </div>
+                                <div class="remote-detail-line" v-if="item.detail_ok">
+                                    <span v-if="item.detail_year">{{item.detail_year}}</span>
+                                    <span v-if="item.detail_rating">评分 {{item.detail_rating}}</span>
+                                    <span v-if="item.detail_genres && item.detail_genres.length">{{item.detail_genres.join(' / ')}}</span>
+                                    <span v-if="item.detail_source">来源 {{item.detail_source}}</span>
+                                </div>
+                                <p class="remote-detail-intro" v-if="item.detail_ok && item.detail_intro">{{item.detail_intro}}</p>
+                                <div class="remote-detail-loading" v-else-if="item.detail_state === 'loading'">正在后台拉取详情与海报…</div>
+                                <div class="btns2" onclick="getUrlBtn(this)" :data-index="index">
+                                    获取资源
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -530,8 +578,23 @@
                 }
                 try {
                     const data = JSON.parse(event.data);
+                    if (data.detail_update && data.result_key) {
+                        const detailIndex = app.QList.findIndex(function (row) {
+                            return row && row.result_key === data.result_key;
+                        });
+                        if (detailIndex >= 0) {
+                            Object.assign(app.QList[detailIndex], data);
+                            if (data.poster) {
+                                const img = new Image();
+                                img.referrerPolicy = 'no-referrer';
+                                img.src = data.poster;
+                            }
+                        }
+                        return;
+                    }
                     const detected = data.resource_kind || app.resourceKind(data.title, data.url).key;
                     if (app.search_kind && detected !== app.search_kind) return;
+                    if (data.result_key && app.QList.some(function (row) { return row && row.result_key === data.result_key; })) return;
                     app.QList.push(data);
                 } catch (e) {
                     console.error('解析数据失败:', e);

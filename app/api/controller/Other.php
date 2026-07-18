@@ -72,8 +72,10 @@ class Other extends QfShop
             exit;
         }
 
+        $detailBudget = 8;
         foreach ($lines as $line) {
             $result = [];
+            $pendingDetails = [];
             echo "线路：" . $line['name'] . "\n\n";
             $type = $line['type'] ?? 'api';
             if ($type === 'tg') {
@@ -124,10 +126,35 @@ class Other extends QfShop
                 }
                 $item['resource_kind'] = $kind['key'] ?? 'other';
                 $item['resource_kind_label'] = $kind['label'] ?? '其他';
+                $rawItem = $item;
+                $item['result_key'] = hash('sha256', (string) ($item['url'] ?? ''));
+                $item['detail_state'] = $detailBudget > 0 ? 'loading' : 'skipped';
                 if (config('qfshop.is_quan_type') != 1 && $is_show != 1) {
                     $item['url'] = encryptObject($item['url']);
                 }
+                // 先把资源结果推给浏览器，详情与海报随后通过同一 SSE 流补回，
+                // 避免外部资料源较慢时整条搜索结果迟迟不出现。
                 echo "data: " . str_replace(["\n", "\r"], '', json_encode($item, JSON_UNESCAPED_UNICODE)) . "\n\n";
+                ob_flush();
+                flush();
+
+                if ($detailBudget > 0) {
+                    $detailBudget--;
+                    $pendingDetails[] = [
+                        'item' => $rawItem,
+                        'kind' => $kind,
+                        'result_key' => $item['result_key'],
+                    ];
+                }
+            }
+
+            // 当前线路的链接先全部展示，再逐条补充资料，避免第一个公开资料源
+            // 响应较慢时阻塞同一线路后续搜索结果。
+            foreach ($pendingDetails as $pending) {
+                $detail = $this->buildSearchItemDetail($pending['item'], $pending['kind']);
+                $detail['result_key'] = $pending['result_key'];
+                $detail['detail_update'] = 1;
+                echo "data: " . str_replace(["\n", "\r"], '', json_encode($detail, JSON_UNESCAPED_UNICODE)) . "\n\n";
                 ob_flush();
                 flush();
             }
@@ -297,6 +324,72 @@ class Other extends QfShop
         ];
         */
         return $customLines ?? [];
+    }
+
+    /**
+     * 为全网搜索结果补充公开详情与类型匹配的海报。
+     * 返回的数据只用于展示，不入库、不转存，也不读取网盘文件清单。
+     */
+    private function buildSearchItemDetail(array $item, array $kind)
+    {
+        $title = trim((string) ($item['title'] ?? ''));
+        $url = trim((string) ($item['url'] ?? ''));
+        $kindKey = (string) ($kind['key'] ?? 'other');
+        if ($title === '' || !function_exists('fetchResourceBasicInfo')) {
+            return ['detail_state' => 'miss', 'detail_ok' => 0];
+        }
+
+        try {
+            $auto = function_exists('buildResourceAutoDetail')
+                ? buildResourceAutoDetail(
+                    $title,
+                    $url,
+                    (int) ($item['is_type'] ?? 0),
+                    (string) ($item['code'] ?? '')
+                )
+                : [];
+            $cleanTitle = trim((string) ($auto['clean_title'] ?? $title));
+            $year = trim((string) ($auto['year'] ?? ''));
+            $info = fetchResourceBasicInfo(
+                $cleanTitle,
+                $kindKey,
+                $year,
+                $url,
+                is_array($auto) ? $auto : []
+            );
+            if (empty($info['ok']) || (!empty($info['kind']) && (string) $info['kind'] !== $kindKey)) {
+                return ['detail_state' => 'miss', 'detail_ok' => 0];
+            }
+
+            $poster = trim((string) ($info['poster'] ?? ''));
+            if ($poster === '' && in_array($kindKey, ['video', 'novel'], true)
+                && function_exists('fetchResourcePoster')) {
+                $poster = (string) fetchResourcePoster($cleanTitle, $kindKey, $year, '', false);
+            }
+            if ($poster !== '' && strpos($poster, 'http') === 0
+                && function_exists('cachePublicPosterLocally')) {
+                $localPoster = cachePublicPosterLocally($poster);
+                if ($localPoster !== '') {
+                    $poster = $localPoster;
+                }
+            }
+
+            return [
+                'detail_state' => 'ready',
+                'detail_ok' => 1,
+                'detail_source' => (string) ($info['source'] ?? ''),
+                'detail_source_url' => (string) ($info['source_url'] ?? ''),
+                'detail_title' => (string) ($info['title'] ?? $cleanTitle),
+                'detail_year' => (string) ($info['year'] ?? $year),
+                'detail_rating' => (string) ($info['rating'] ?? ''),
+                'detail_rating_count' => (int) ($info['rating_count'] ?? 0),
+                'detail_genres' => array_slice((array) ($info['genres'] ?? []), 0, 6),
+                'detail_intro' => trim((string) ($info['intro'] ?? '')),
+                'poster' => $poster,
+            ];
+        } catch (\Throwable $e) {
+            return ['detail_state' => 'miss', 'detail_ok' => 0];
+        }
     }
 
     /**

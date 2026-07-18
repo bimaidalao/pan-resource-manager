@@ -1602,6 +1602,14 @@ function buildResourceAutoDetail($title = '', $url = '', $isType = 0, $code = ''
     $clean = preg_replace('/（[^）]*）/u', ' ', $clean);
     $clean = preg_replace('/\([^)]*\)/u', ' ', $clean);
     $clean = preg_replace('/\s+/u', ' ', trim((string) $clean));
+    // 详情检索必须使用核心名称。网盘标题常带 4K、HDR、更新至、集数等
+    // 包装信息，直接拿整串请求公开资料源会显著降低命中率。
+    if ($clean !== '' && function_exists('extractPosterSearchQueries')) {
+        $detailQueries = extractPosterSearchQueries($clean, $year);
+        if (!empty($detailQueries[0])) {
+            $clean = trim((string) $detailQueries[0]);
+        }
+    }
     if ($clean === '') {
         $clean = $title;
     }
