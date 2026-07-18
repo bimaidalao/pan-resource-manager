@@ -204,7 +204,7 @@ class Index extends QfShop
             // 生产环境的旧数据、分词扩展或外链检测异常，都不能让搜索页
             // 整体返回空白 500；本地结果失败时前端仍可自动切到全网搜索。
             try {
-                $localList = $this->SourceModel->getList($data);
+                $localList = $this->getLocalSearchList($data);
                 if (is_array($localList)) {
                     $list = $localList;
                 }
@@ -310,6 +310,91 @@ class Index extends QfShop
         } catch (\Throwable $e) {
             $this->logSearchFailure('template', $e);
             return $this->renderSearchFallback($name, $searchKind, $config);
+        }
+    }
+
+    /**
+     * 网页搜索使用轻量本地查询。列表请求不再同步验链、访问外部资料源或
+     * 写海报缓存，避免某条历史数据/外部网盘响应把整个搜索页拖成 500。
+     * 详情拉取和验链仍由详情页及搜索 SSE 的后台预热流程负责。
+     */
+    private function getLocalSearchList(array $data)
+    {
+        $keyword = trim((string) ($data['title'] ?? ''));
+        $categoryId = trim((string) ($data['category_id'] ?? ''));
+        $pageNo = max(1, (int) ($data['page_no'] ?? 1));
+        $pageSize = max(1, min(30, (int) ($data['page_size'] ?? 10)));
+        $requestedKind = strtolower(trim((string) ($data['resource_kind'] ?? '')));
+        if (!in_array($requestedKind, ['video', 'novel', 'document', 'software'], true)) {
+            $requestedKind = '';
+        }
+
+        $buildQuery = function () use ($keyword, $categoryId) {
+            $query = $this->SourceModel->where([
+                ['status', '=', 1],
+                ['is_delete', '=', 0],
+            ]);
+            if ($keyword !== '') {
+                $query->where('title|description', 'like', '%' . $keyword . '%');
+            }
+            if ($categoryId !== '') {
+                $query->where('source_category_id', 'in', explode(',', $categoryId));
+            }
+            return $query;
+        };
+
+        if ($requestedKind === '') {
+            $total = (int) $buildQuery()->count();
+            $rows = $buildQuery()
+                ->field('source_id as id,title,is_type,code,url,update_time as time')
+                ->order('source_id', 'desc')
+                ->page($pageNo, $pageSize)
+                ->select()
+                ->toArray();
+        } else {
+            // 类型是历史资源的推导字段，分块读取候选后分类，再做正确分页。
+            $candidateRows = $buildQuery()
+                ->field('source_id as id,title,is_type,code,url,update_time as time')
+                ->order('source_id', 'desc')
+                ->limit(1000)
+                ->select()
+                ->toArray();
+            $filtered = [];
+            foreach ($candidateRows as $row) {
+                $kind = $this->safeResourceKind((string) ($row['title'] ?? ''), (string) ($row['url'] ?? ''));
+                if (($kind['key'] ?? 'other') === $requestedKind) {
+                    $row['_kind'] = $kind;
+                    $filtered[] = $row;
+                }
+            }
+            $total = count($filtered);
+            $rows = array_slice($filtered, ($pageNo - 1) * $pageSize, $pageSize);
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            $title = trim(str_replace("'", '', (string) ($row['title'] ?? '')));
+            $kind = $row['_kind'] ?? $this->safeResourceKind($title, (string) ($row['url'] ?? ''));
+            $row['title'] = $title;
+            $row['name'] = highlightKeywords($title, [$keyword]);
+            $row['times'] = !empty($row['time']) ? substr((string) $row['time'], 0, 10) : '';
+            $row['resource_kind'] = (string) ($kind['key'] ?? 'other');
+            $row['resource_kind_label'] = (string) ($kind['label'] ?? '其他');
+            unset($row['time'], $row['_kind']);
+            $items[] = $row;
+        }
+
+        return ['total_result' => $total, 'items' => $items];
+    }
+
+    private function safeResourceKind($title, $url)
+    {
+        try {
+            return function_exists('detectResourceKind')
+                ? detectResourceKind((string) $title, (string) $url)
+                : ['key' => 'other', 'label' => '其他'];
+        } catch (\Throwable $e) {
+            return ['key' => 'other', 'label' => '其他'];
         }
     }
 

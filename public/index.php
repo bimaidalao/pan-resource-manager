@@ -26,8 +26,13 @@ if(file_exists("./install") && !file_exists("./install/install.lock")){
 
 require __DIR__ . '/../vendor/autoload.php';
 
-// 执行HTTP应用并响应
-$http = (new App())->http;
+// 执行 HTTP 应用并响应。公开入口强制关闭调试输出，详细异常继续写入
+// runtime 日志，避免 .env 误开 APP_DEBUG 时把 SQL、服务器路径和调用栈
+// 注入每一个页面响应。
+$app = new App();
+$app->initialize();
+$app->debug(false);
+$http = $app->http;
 
 // $response = $http->run();
 
