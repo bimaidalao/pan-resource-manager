@@ -1934,6 +1934,14 @@ function resourceHttpGetJson($url, $timeout = 4.0, array $extraHeaders = [])
 function cachePublicPosterLocally($url = '', $download = true)
 {
     $url = trim((string) $url);
+    if (strpos($url, '/uploads/posters/') === 0) {
+        $name = basename(parse_url($url, PHP_URL_PATH));
+        if (preg_match('/^[a-f0-9]{64}\.(?:jpg|png|webp|gif)$/i', $name)
+            && is_file(public_path('uploads/posters') . DIRECTORY_SEPARATOR . $name)) {
+            return '/uploads/posters/' . $name;
+        }
+        return '';
+    }
     // 兼容旧版本生成的公开地址：服务器通常禁止直接访问 runtime，发现旧
     // 文件时迁移到 uploads/posters 后返回新的公开 URL。
     if (strpos($url, '/runtime/posters/') === 0) {

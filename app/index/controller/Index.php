@@ -109,18 +109,33 @@ class Index extends QfShop
         // 海报。只读取现成 vod_pic，不在首页请求外部资料源。
         $heroShowcase = [];
         try {
-            $heroShowcase = $this->SourceModel
+            $heroCandidates = $this->SourceModel
                 ->where($map)
                 ->where('vod_pic', '<>', '')
                 ->field('source_id as id,title,vod_pic as poster')
                 ->order(['source_id' => 'desc'])
-                ->limit(3)
+                ->limit(12)
                 ->select()
                 ->toArray();
-            $heroShowcase = array_values(array_filter($heroShowcase, function ($row) {
+            foreach ($heroCandidates as $row) {
                 $poster = trim((string) ($row['poster'] ?? ''));
-                return $poster !== '' && strpos($poster, 'data:') !== 0;
-            }));
+                if ($poster === '' || strpos($poster, 'data:') === 0) {
+                    continue;
+                }
+                // 首页绝不再直接热链豆瓣/BGM；只选择已由详情预热完成、
+                // 浏览器可直接访问的本地海报。旧 runtime 缓存会在这里迁移。
+                $localPoster = function_exists('cachePublicPosterLocally')
+                    ? cachePublicPosterLocally($poster, false)
+                    : '';
+                if ($localPoster === '') {
+                    continue;
+                }
+                $row['poster'] = $localPoster;
+                $heroShowcase[] = $row;
+                if (count($heroShowcase) >= 3) {
+                    break;
+                }
+            }
         } catch (\Throwable $e) {
             $heroShowcase = [];
         }

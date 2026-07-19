@@ -228,7 +228,8 @@
                     <div class="premium-showcase-stack">
                         {volist name="heroShowcase" id="hero"}
                         <a class="premium-showcase-card card-{$key+1}" href="/d/{$hero.id}.html" title="{$hero.title}">
-                            <img src="{$hero.poster}" alt="{$hero.title}" loading="eager" referrerpolicy="no-referrer">
+                            <img src="{$hero.poster}" alt="{$hero.title}" loading="eager" referrerpolicy="no-referrer"
+                                onerror="this.onerror=null;this.style.display='none';">
                             <span>{$hero.title}</span>
                         </a>
                         {/volist}
